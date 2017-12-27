@@ -1,2 +1,2 @@
 [workspace]
-members = ["ctl", "daemon"]
+members = ["ctl", "lib", "daemon"]
