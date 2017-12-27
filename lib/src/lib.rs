@@ -1,3 +1,6 @@
+pub mod ffi;
+pub mod process;
+
 pub const DEFAULT_PORT: u16 = 7089;
 
 #[cfg(test)]
