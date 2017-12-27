@@ -1,7 +1,7 @@
 extern crate taskmaster;
 
 use std::fs::File;
-use std::io::Write;
+use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::process::exit;
 use taskmaster::ffi::{chdir, close_all_fd, umask};
@@ -33,8 +33,24 @@ fn main() {
     writeln!(file, "listening").unwrap();
     for client in listener.incoming() {
         match client {
-            Ok(stream) => {
+            Ok(mut stream) => {
                 writeln!(file, "connected with {}", stream.peer_addr().unwrap()).unwrap();
+                let mut buf = [0; 4];
+                stream.read(&mut buf).unwrap();
+                match (buf[0], buf[1], buf[2], buf[3]) {
+                    (0xde, 0xad, 0xbe, 0xef) => {
+                        writeln!(
+                            file,
+                            "exit instruction from {}",
+                            stream.peer_addr().unwrap()
+                        ).unwrap();
+                        break;
+                    }
+                    (0xca, 0xfe, 0xba, 0xbe) => {
+                        writeln!(file, "wave from {}", stream.peer_addr().unwrap()).unwrap();
+                    }
+                    _ => {}
+                }
             }
             Err(e) => {
                 writeln!(file, "connection failed {}", e).unwrap();

@@ -1,4 +1,6 @@
+pub mod config;
 pub mod ffi;
+pub mod log;
 pub mod process;
 
 pub const DEFAULT_PORT: u16 = 7089;
