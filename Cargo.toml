@@ -1,0 +1,2 @@
+[workspace]
+members = ["ctl", "daemon"]
