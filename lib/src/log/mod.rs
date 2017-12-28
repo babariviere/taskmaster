@@ -1,9 +1,17 @@
 //! Module for logging
 
+#[macro_use]
+mod macros;
 mod output;
 
 pub use self::output::*;
 use std::fs::File;
+
+/// Logger
+static mut LOGGER: Logger = Logger {
+    outputs: None,
+    max_lvl: LevelFilter::Blather,
+};
 
 /// Log level
 #[derive(Clone, Copy, Debug)]
@@ -110,28 +118,28 @@ impl<'a> MetadataBuilder<'a> {
 
     /// Set log level
     #[inline]
-    pub fn level(&mut self, lvl: Level) -> &mut MetadataBuilder<'a> {
+    pub fn level(mut self, lvl: Level) -> MetadataBuilder<'a> {
         self.0.level = lvl;
         self
     }
 
     /// Set module path
     #[inline]
-    pub fn module(&mut self, module: &'a str) -> &mut MetadataBuilder<'a> {
+    pub fn module(mut self, module: &'a str) -> MetadataBuilder<'a> {
         self.0.module = module;
         self
     }
 
     /// Set file name
     #[inline]
-    pub fn file(&mut self, file: &'a str) -> &mut MetadataBuilder<'a> {
+    pub fn file(mut self, file: &'a str) -> MetadataBuilder<'a> {
         self.0.file = file;
         self
     }
 
     /// Set line
     #[inline]
-    pub fn line(&mut self, line: u32) -> &mut MetadataBuilder<'a> {
+    pub fn line(mut self, line: u32) -> MetadataBuilder<'a> {
         self.0.line = line;
         self
     }
@@ -207,42 +215,42 @@ impl<'a> LogBuilder<'a> {
 
     /// Set message
     #[inline]
-    pub fn message(&mut self, msg: &'a str) -> &mut LogBuilder<'a> {
+    pub fn message(mut self, msg: &'a str) -> LogBuilder<'a> {
         self.0.msg = msg;
         self
     }
 
     /// Set meta
     #[inline]
-    pub fn meta(&mut self, meta: Metadata<'a>) -> &mut LogBuilder<'a> {
+    pub fn meta(mut self, meta: Metadata<'a>) -> LogBuilder<'a> {
         self.0.meta = meta;
         self
     }
 
     /// Set log level
     #[inline]
-    pub fn level(&mut self, lvl: Level) -> &mut LogBuilder<'a> {
+    pub fn level(mut self, lvl: Level) -> LogBuilder<'a> {
         self.0.meta.level = lvl;
         self
     }
 
     /// Set log module
     #[inline]
-    pub fn module(&mut self, module: &'a str) -> &mut LogBuilder<'a> {
+    pub fn module(mut self, module: &'a str) -> LogBuilder<'a> {
         self.0.meta.module = module;
         self
     }
 
     /// Set log file
     #[inline]
-    pub fn file(&mut self, file: &'a str) -> &mut LogBuilder<'a> {
+    pub fn file(mut self, file: &'a str) -> LogBuilder<'a> {
         self.0.meta.file = file;
         self
     }
 
     /// Set log line
     #[inline]
-    pub fn line(&mut self, line: u32) -> &mut LogBuilder<'a> {
+    pub fn line(mut self, line: u32) -> LogBuilder<'a> {
         self.0.meta.line = line;
         self
     }
@@ -256,7 +264,7 @@ impl<'a> LogBuilder<'a> {
 
 /// Allow logging
 pub struct Logger {
-    outputs: Vec<Output>,
+    outputs: Option<Vec<Output>>,
     max_lvl: LevelFilter,
 }
 
@@ -264,18 +272,39 @@ impl Logger {
     /// Create a new logger
     pub fn new() -> Logger {
         Logger {
-            outputs: Vec::new(),
+            outputs: None,
             max_lvl: LevelFilter::Blather,
+        }
+    }
+
+    /// Add an output
+    pub fn add_output(&mut self, out: Output) {
+        match self.outputs {
+            Some(ref mut outs) => outs.push(out),
+            None => {
+                let mut outputs = Vec::new();
+                outputs.push(out);
+                self.outputs = Some(outputs);
+            }
         }
     }
 
     /// Do logging
     pub fn log(&mut self, log: Log) {
+        let ref mut outputs = match self.outputs {
+            Some(ref mut out) => out,
+            None => return,
+        };
         if log.level() as u8 > self.max_lvl as u8 {
             return;
         }
-        for output in &mut self.outputs {
+        for output in outputs.iter_mut() {
             output.log(&log);
         }
     }
+}
+
+/// Get mutable ref to global logger
+pub fn logger() -> &'static mut Logger {
+    unsafe { &mut LOGGER }
 }

@@ -6,6 +6,7 @@ use std::path::Path;
 /// TODO: format
 
 /// Output kind
+#[derive(Debug)]
 enum OutputKind {
     Stdout(io::Stdout),
     Stderr(io::Stderr),
@@ -13,6 +14,7 @@ enum OutputKind {
 }
 
 /// Output
+#[derive(Debug)]
 pub struct Output {
     kind: OutputKind,
     lvl: LevelFilter,
@@ -50,13 +52,13 @@ impl Output {
         }
         match self.kind {
             OutputKind::Stdout(ref mut s) => {
-                let _ = s.write(log.message().as_bytes());
+                let _ = writeln!(s, "{}", log.message());
             }
             OutputKind::Stderr(ref mut s) => {
-                let _ = s.write(log.message().as_bytes());
+                let _ = writeln!(s, "{}", log.message());
             }
             OutputKind::File(ref mut s) => {
-                let _ = s.write(log.message().as_bytes());
+                let _ = writeln!(s, "{}", log.message());
             }
         }
     }
