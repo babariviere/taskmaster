@@ -1,6 +1,6 @@
 //! Module to create process
 
-use ffi::errno::*;
+use libc;
 
 /// Error when forking
 #[derive(Debug)]
@@ -22,12 +22,14 @@ pub enum ForkResult {
 
 /// Fork syscall
 pub fn fork() -> Result<ForkResult, ForkError> {
-    let res = unsafe { super::ffi::fork() };
+    let res = unsafe { libc::fork() };
     if res < 0 {
-        match super::ffi::errno() {
-            EAGAIN => return Err(ForkError::LimitExceeded),
-            ENOMEM => return Err(ForkError::InsufficientSpace),
-            _ => unreachable!(),
+        unsafe {
+            match *libc::__error() {
+                libc::EAGAIN => return Err(ForkError::LimitExceeded),
+                libc::ENOMEM => return Err(ForkError::InsufficientSpace),
+                _ => unreachable!(),
+            }
         }
     }
     if res == 0 {

@@ -1,13 +1,16 @@
+#![feature(libc)]
+
 extern crate taskmaster;
 
 use std::fs::File;
 use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::process::exit;
-use taskmaster::ffi::{chdir, close_all_fd, umask};
+use taskmaster::ffi::close_all_fd;
+use taskmaster::libc;
 use taskmaster::process::*;
 
-fn main() {
+fn daemonize() {
     match fork() {
         Ok(ForkResult::Parent(pid)) => {
             println!("running on pid {}", pid);
@@ -17,10 +20,13 @@ fn main() {
         Err(_) => exit(1),
     }
     unsafe {
-        chdir("/".as_ptr());
-        umask(0);
+        libc::chdir("/".as_ptr() as *const _);
+        libc::umask(0);
         close_all_fd();
     }
+}
+
+fn main() {
     let mut file = File::create("log").unwrap();
     writeln!(file, "starting listener").unwrap();
     let listener = match TcpListener::bind(("127.0.0.1", taskmaster::DEFAULT_PORT)) {
