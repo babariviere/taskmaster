@@ -29,7 +29,25 @@ fn daemonize() {
 
 fn main() {
     daemonize();
-    logger().add_output(Output::file("log", LevelFilter::Blather).unwrap());
+    logger().add_output(
+        Output::file(
+            "log",
+            LevelFilter::Blather,
+            Some(Box::new(|log| {
+                if log.level() as u8 >= LevelFilter::Debug as u8 {
+                    format!(
+                        "[{}] {}::{} {}",
+                        log.level(),
+                        log.file(),
+                        log.line(),
+                        log.message()
+                    )
+                } else {
+                    format!("[{}] {}", log.level(), log.message())
+                }
+            })),
+        ).unwrap(),
+    );
     info!("starting listener");
     let listener = match TcpListener::bind(("127.0.0.1", taskmaster::DEFAULT_PORT)) {
         Ok(l) => l,
@@ -39,6 +57,7 @@ fn main() {
         }
     };
     info!("listening");
+    debug!("listener has start on port {}", taskmaster::DEFAULT_PORT);
     for client in listener.incoming() {
         match client {
             Ok(mut stream) => {

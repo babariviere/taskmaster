@@ -3,7 +3,7 @@ macro_rules! log {
     ($lvl:expr, $($arg:tt)+) => ({
         $crate::log::logger().log(
             $crate::log::LogBuilder::new()
-                    .message(&format!("{}", format_args!($($arg)+)))
+                    .message(format_args!($($arg)+))
                     .level($lvl)
                     .module(module_path!())
                     .file(file!())

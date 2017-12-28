@@ -5,6 +5,7 @@ mod macros;
 mod output;
 
 pub use self::output::*;
+use std::fmt;
 use std::fs::File;
 
 /// Logger
@@ -31,6 +32,20 @@ pub enum Level {
     Trace,
     /// Useless talk
     Blather,
+}
+
+impl fmt::Display for Level {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &Level::Critical => write!(f, "critical"),
+            &Level::Error => write!(f, "error"),
+            &Level::Warn => write!(f, "warn"),
+            &Level::Info => write!(f, "info"),
+            &Level::Debug => write!(f, "debug"),
+            &Level::Trace => write!(f, "trace"),
+            &Level::Blather => write!(f, "blather"),
+        }
+    }
 }
 
 impl Default for Level {
@@ -153,15 +168,15 @@ impl<'a> MetadataBuilder<'a> {
 
 /// A log message
 pub struct Log<'a> {
-    msg: &'a str,
+    msg: fmt::Arguments<'a>,
     meta: Metadata<'a>,
 }
 
 impl<'a> Log<'a> {
     /// Get log message
     #[inline]
-    pub fn message(&self) -> &'a str {
-        self.msg
+    pub fn message(&self) -> &fmt::Arguments<'a> {
+        &self.msg
     }
 
     /// Get log meta
@@ -198,7 +213,7 @@ impl<'a> Log<'a> {
 impl<'a> Default for Log<'a> {
     fn default() -> Log<'a> {
         Log {
-            msg: "",
+            msg: format_args!(""),
             meta: Metadata::default(),
         }
     }
@@ -215,7 +230,7 @@ impl<'a> LogBuilder<'a> {
 
     /// Set message
     #[inline]
-    pub fn message(mut self, msg: &'a str) -> LogBuilder<'a> {
+    pub fn message(mut self, msg: fmt::Arguments<'a>) -> LogBuilder<'a> {
         self.0.msg = msg;
         self
     }

@@ -4,9 +4,9 @@ use std::io::{self, Write};
 use std::path::Path;
 
 /// TODO: format
+pub type Formatter = Fn(&Log) -> String;
 
 /// Output kind
-#[derive(Debug)]
 enum OutputKind {
     Stdout(io::Stdout),
     Stderr(io::Stderr),
@@ -14,34 +14,41 @@ enum OutputKind {
 }
 
 /// Output
-#[derive(Debug)]
 pub struct Output {
     kind: OutputKind,
     lvl: LevelFilter,
+    format: Option<Box<Formatter>>,
 }
 
 impl Output {
     /// Create output from stdout
-    pub fn stdout(lvl: LevelFilter) -> Output {
+    pub fn stdout(lvl: LevelFilter, format: Option<Box<Formatter>>) -> Output {
         Output {
             kind: OutputKind::Stdout(io::stdout()),
             lvl: lvl,
+            format: format,
         }
     }
 
     /// Create output from stderr
-    pub fn stderr(lvl: LevelFilter) -> Output {
+    pub fn stderr(lvl: LevelFilter, format: Option<Box<Formatter>>) -> Output {
         Output {
             kind: OutputKind::Stderr(io::stderr()),
             lvl: lvl,
+            format: format,
         }
     }
 
     /// Create output from file
-    pub fn file<P: AsRef<Path>>(path: P, lvl: LevelFilter) -> Result<Output, io::Error> {
+    pub fn file<P: AsRef<Path>>(
+        path: P,
+        lvl: LevelFilter,
+        format: Option<Box<Formatter>>,
+    ) -> Result<Output, io::Error> {
         Ok(Output {
             kind: OutputKind::File(File::create(path.as_ref())?),
             lvl: lvl,
+            format: format,
         })
     }
 
@@ -52,13 +59,25 @@ impl Output {
         }
         match self.kind {
             OutputKind::Stdout(ref mut s) => {
-                let _ = writeln!(s, "{}", log.message());
+                if let Some(ref f) = self.format {
+                    let _ = writeln!(s, "{}", f(log));
+                } else {
+                    let _ = writeln!(s, "{}", log.message());
+                }
             }
             OutputKind::Stderr(ref mut s) => {
-                let _ = writeln!(s, "{}", log.message());
+                if let Some(ref f) = self.format {
+                    let _ = writeln!(s, "{}", f(log));
+                } else {
+                    let _ = writeln!(s, "{}", log.message());
+                }
             }
             OutputKind::File(ref mut s) => {
-                let _ = writeln!(s, "{}", log.message());
+                if let Some(ref f) = self.format {
+                    let _ = writeln!(s, "{}", f(log));
+                } else {
+                    let _ = writeln!(s, "{}", log.message());
+                }
             }
         }
     }
