@@ -1,12 +1,18 @@
-use log::LogLevel;
+//! Module to parse and get config
+
+use log::Level;
 use std::env;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::PathBuf;
 
+/// Condition to auto restart a program
 #[derive(Debug)]
 pub enum AutoRestartCondition {
+    /// When the program exit and don't match exit codes
     Unexpected,
+    /// Auto restart on exit
     True,
+    /// Do not auto restart
     False,
 }
 
@@ -16,14 +22,22 @@ impl Default for AutoRestartCondition {
     }
 }
 
+/// Signal to stop a program
 #[derive(Debug)]
 pub enum StopSignal {
+    /// Term signal
     Term,
+    /// Hup signal
     Hup,
+    /// Int signal
     Int,
+    /// Quit signal
     Quit,
+    /// Kill signal
     Kill,
+    /// User 1 signal
     Usr1,
+    /// User 2 signal
     Usr2,
 }
 
@@ -33,10 +47,14 @@ impl Default for StopSignal {
     }
 }
 
+/// Logging output
 #[derive(Debug)]
 pub enum OutputLog {
+    /// No output
     None,
+    /// Output to specified file
     File(PathBuf),
+    /// Output to an automatic path
     Auto,
 }
 
@@ -46,12 +64,13 @@ impl Default for OutputLog {
     }
 }
 
+/// Configuration for taskmasterd
 #[derive(Debug)]
 pub struct DaemonConfig {
     logfile: PathBuf,
     logfile_maxbytes: usize,
     logfile_backups: u16,
-    loglevel: LogLevel,
+    loglevel: Level,
     pidfile: PathBuf,
     umask: u16,
     nodaemon: bool,
@@ -67,7 +86,7 @@ impl Default for DaemonConfig {
             logfile: cwd.join("taskmasterd.log"),
             logfile_maxbytes: 50000,
             logfile_backups: 10,
-            loglevel: LogLevel::Info,
+            loglevel: Level::Info,
             pidfile: cwd.join("taskmasterd.pid"),
             umask: 0o022,
             nodaemon: false,
@@ -78,6 +97,7 @@ impl Default for DaemonConfig {
     }
 }
 
+/// Configuration for taskmasterctl
 #[derive(Debug)]
 pub struct CtlConfig {
     server_ip: SocketAddr,
@@ -98,6 +118,7 @@ impl Default for CtlConfig {
     }
 }
 
+/// Configuration for one process (program)
 #[derive(Debug)]
 pub struct ProcessConfig {
     name: String,
