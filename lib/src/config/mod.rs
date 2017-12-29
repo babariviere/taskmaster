@@ -187,3 +187,10 @@ impl Default for ProcessConfig {
         }
     }
 }
+
+/// Global config
+pub struct Config {
+    daemon: Option<DaemonConfig>,
+    ctl: Option<CtlConfig>,
+    processes: Vec<ProcessConfig>,
+}

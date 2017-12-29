@@ -51,7 +51,6 @@ fn main() {
             ).unwrap(),
         )
     });
-    //logger().add_output(Output::file("aaa", LevelFilter::Blather, None).unwrap());
     info!("starting listener");
     let listener = match TcpListener::bind(("127.0.0.1", taskmaster::DEFAULT_PORT)) {
         Ok(l) => l,

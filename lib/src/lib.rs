@@ -8,6 +8,7 @@ extern crate libc as _libc;
 pub mod config;
 pub mod ffi;
 pub mod log;
+pub mod parser;
 pub mod process;
 
 /// Libc

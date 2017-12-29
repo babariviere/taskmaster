@@ -1,3 +1,2 @@
 [info] starting listener
-[info] listening
-[debug] daemon/src/main.rs::64 listener has start on port 7089
+[error] Error Address already in use (os error 48)
