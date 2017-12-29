@@ -28,26 +28,30 @@ fn daemonize() {
 }
 
 fn main() {
+    let log_path = ::std::env::current_dir().unwrap().join("log");
     daemonize();
-    logger().add_output(
-        Output::file(
-            "log",
-            LevelFilter::Blather,
-            Some(Box::new(|log| {
-                if log.level() as u8 >= LevelFilter::Debug as u8 {
-                    format!(
-                        "[{}] {}::{} {}",
-                        log.level(),
-                        log.file(),
-                        log.line(),
-                        log.message()
-                    )
-                } else {
-                    format!("[{}] {}", log.level(), log.message())
-                }
-            })),
-        ).unwrap(),
-    );
+    init_logger(move |logger| {
+        logger.add_output(
+            Output::file(
+                log_path,
+                LevelFilter::Blather,
+                Some(Box::new(|log| {
+                    if log.level() as u8 >= LevelFilter::Debug as u8 {
+                        format!(
+                            "[{}] {}::{} {}",
+                            log.level(),
+                            log.file(),
+                            log.line(),
+                            log.message()
+                        )
+                    } else {
+                        format!("[{}] {}", log.level(), log.message())
+                    }
+                })),
+            ).unwrap(),
+        )
+    });
+    //logger().add_output(Output::file("aaa", LevelFilter::Blather, None).unwrap());
     info!("starting listener");
     let listener = match TcpListener::bind(("127.0.0.1", taskmaster::DEFAULT_PORT)) {
         Ok(l) => l,

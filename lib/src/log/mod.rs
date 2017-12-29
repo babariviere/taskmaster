@@ -304,6 +304,11 @@ impl Logger {
         }
     }
 
+    /// Set max level
+    pub fn set_max_level(&mut self, lvl: LevelFilter) {
+        self.max_lvl = lvl;
+    }
+
     /// Do logging
     pub fn log(&mut self, log: Log) {
         let ref mut outputs = match self.outputs {
@@ -322,4 +327,13 @@ impl Logger {
 /// Get mutable ref to global logger
 pub fn logger() -> &'static mut Logger {
     unsafe { &mut LOGGER }
+}
+
+/// Initialize logger
+pub fn init_logger<F>(init: F)
+where
+    F: FnOnce(&'static mut Logger),
+{
+    let logger = logger();
+    init(logger);
 }
