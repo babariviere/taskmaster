@@ -1,5 +1,9 @@
 //! Module to parse and get config
 
+mod parser;
+
+pub use self::parser::*;
+
 use log::Level;
 use std::env;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
@@ -193,4 +197,21 @@ pub struct Config {
     daemon: Option<DaemonConfig>,
     ctl: Option<CtlConfig>,
     processes: Vec<ProcessConfig>,
+}
+
+impl Config {
+    /// Get daemon config
+    pub fn daemon(&self) -> Option<&DaemonConfig> {
+        self.daemon.as_ref()
+    }
+
+    /// Get ctl config
+    pub fn ctl(&self) -> Option<&CtlConfig> {
+        self.ctl.as_ref()
+    }
+
+    /// Get processes config
+    pub fn processes(&self) -> &Vec<ProcessConfig> {
+        &self.processes
+    }
 }
