@@ -6,7 +6,7 @@ extern crate taskmaster;
 use std::io::Read;
 use std::net::TcpListener;
 use std::process::exit;
-use taskmaster::config::IniValue;
+use taskmaster::config::ConfigParser;
 use taskmaster::ffi::close_all_fd;
 use taskmaster::log::*;
 use taskmaster::libc;
@@ -28,25 +28,10 @@ fn daemonize() {
     }
 }
 
-fn print_values(inis: &Vec<IniValue>) {
-    for value in inis {
-        match value {
-            &IniValue::Key(ref n, ref v) => println!("{}: {}", n, v),
-            &IniValue::Section(ref n, ref v) => {
-                println!("section {}", n);
-                print_values(v);
-                println!();
-            }
-        }
-    }
-}
-
 fn main() {
     let mut f = ::std::fs::File::open("/Users/briviere/projects/taskmaster/sample.ini").unwrap();
     let mut buf = String::new();
     f.read_to_string(&mut buf);
-    let values = ::taskmaster::config::IniParser::new(&buf).parse();
-    print_values(&values);
     let log_path = ::std::env::current_dir().unwrap().join("log");
     daemonize();
     init_logger(move |logger| {
@@ -70,6 +55,8 @@ fn main() {
             ).unwrap(),
         )
     });
+    let config = ConfigParser::new(&buf).parse();
+    info!("config: {:?}", config);
     info!("starting listener");
     let listener = match TcpListener::bind(("127.0.0.1", taskmaster::DEFAULT_PORT)) {
         Ok(l) => l,

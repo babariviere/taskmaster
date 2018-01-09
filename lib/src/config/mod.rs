@@ -193,6 +193,7 @@ impl Default for ProcessConfig {
 }
 
 /// Global config
+#[derive(Debug, Default)]
 pub struct Config {
     daemon: Option<DaemonConfig>,
     ctl: Option<CtlConfig>,

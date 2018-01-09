@@ -7,6 +7,7 @@ mod output;
 pub use self::output::*;
 use std::fmt;
 use std::fs::File;
+use std::str::FromStr;
 
 /// Logger
 static mut LOGGER: Logger = Logger {
@@ -51,6 +52,23 @@ impl fmt::Display for Level {
 impl Default for Level {
     fn default() -> Level {
         Level::Info
+    }
+}
+
+impl FromStr for Level {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "critical" => Ok(Level::Critical),
+            "error" => Ok(Level::Error),
+            "warn" => Ok(Level::Warn),
+            "info" => Ok(Level::Info),
+            "debug" => Ok(Level::Debug),
+            "trace" => Ok(Level::Trace),
+            "blather" => Ok(Level::Blather),
+            _ => Err(()),
+        }
     }
 }
 

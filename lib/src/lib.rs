@@ -5,9 +5,10 @@
 
 extern crate libc as _libc;
 
+#[macro_use]
+pub mod log;
 pub mod config;
 pub mod ffi;
-pub mod log;
 pub mod parser;
 pub mod process;
 
