@@ -322,6 +322,13 @@ impl Logger {
         }
     }
 
+    /// Remove all outputs
+    pub fn clear_outputs(&mut self) {
+        if let Some(ref mut outs) = self.outputs {
+            outs.clear();
+        }
+    }
+
     /// Set max level
     pub fn set_max_level(&mut self, lvl: LevelFilter) {
         self.max_lvl = lvl;
@@ -353,5 +360,6 @@ where
     F: FnOnce(&'static mut Logger),
 {
     let logger = logger();
+    logger.clear_outputs();
     init(logger);
 }

@@ -1,10 +1,2 @@
-[warn] unexpected value in configuration "serverurl"
-[warn] unexpected value in configuration Section("rpcinterface:taskmaster", [Key("taskmaster.rpcinterface_factory", "taskmaster.rpcinterface:make_main_rpcinterface")])
-[warn] unknown field `minprocs` in config
-[warn] invalid field `logfile_maxbytes` in config
-[trace] lib/src/config/parser.rs::166 config error: invalid digit found in string
-[warn] unexpected value in configuration Section("unix_http_server", [Key("file", "/tmp/taskmaster.sock")])
-[info] config: Config { daemon: Some(DaemonConfig { logfile: "/tmp/taskmasterd.log", logfile_maxbytes: 50000, logfile_backups: 10, loglevel: Info, pidfile: "/tmp/taskmasterd.pid", umask: 18, nodaemon: false, minfds: 1024, nocleanup: false, child_log_dir: "/tmp.5321" }), ctl: Some(CtlConfig { server_ip: V4(127.0.0.1:7089), prompt: "taskmaster> ", history_file: None }), processes: [ProcessConfig { name: "theprogramname", command: "/bin/cat", num_procs: 1, num_procs_start: 0, priority: 999, auto_start: true, start_secs: 1, start_retries: 3, auto_restart: Unexpected, exit_codes: [0, 2], stop_signal: Term, stop_wait_secs: 10, stop_as_group: None, kill_as_group: None, user: None, redirect_stderr: None, stdout_logfile: Auto, stdout_logfile_maxbytes: 50000, stdout_logfile_backups: 10, stdout_capture_maxbytes: 0, stdout_events_enabled: false, stderr_logfile: Auto, stderr_logfile_maxbytes: 50000, stderr_logfile_backups: 10, stderr_capture_maxbytes: 0, stderr_events_enabled: false, envs: None, directory: None, umask: None }] }
 [info] starting listener
-[info] listening
-[debug] daemon/src/main.rs::70 listener has start on port 7089
+[error] Error Address already in use (os error 48)

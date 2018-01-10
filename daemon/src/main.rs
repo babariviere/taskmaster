@@ -6,7 +6,7 @@ extern crate taskmaster;
 use std::io::Read;
 use std::net::TcpListener;
 use std::process::exit;
-use taskmaster::config::ConfigParser;
+use taskmaster::config::{Config, ConfigParser};
 use taskmaster::ffi::close_all_fd;
 use taskmaster::log::*;
 use taskmaster::libc;
@@ -15,7 +15,7 @@ use taskmaster::process::*;
 fn daemonize() {
     match fork() {
         Ok(ForkResult::Parent(pid)) => {
-            println!("running on pid {}", pid);
+            info!("running on pid {}", pid);
             exit(0);
         }
         Ok(ForkResult::Child) => {}
@@ -28,11 +28,25 @@ fn daemonize() {
     }
 }
 
-fn main() {
+fn get_config() -> Config {
     let mut f = ::std::fs::File::open("/Users/briviere/projects/taskmaster/sample.ini").unwrap();
     let mut buf = String::new();
     f.read_to_string(&mut buf);
+    init_logger(|logger| {
+        logger.add_output(Output::stdout(
+            LevelFilter::Trace,
+            Some(Box::new(|log| {
+                format!("[{}] {}", log.level(), log.message())
+            })),
+        ));
+    });
+    ConfigParser::new(&buf).parse()
+}
+
+fn main() {
     let log_path = ::std::env::current_dir().unwrap().join("log");
+    let config = get_config();
+    trace!("config:\n{:#?}", config);
     daemonize();
     init_logger(move |logger| {
         logger.add_output(
@@ -55,8 +69,6 @@ fn main() {
             ).unwrap(),
         )
     });
-    let config = ConfigParser::new(&buf).parse();
-    info!("config: {:?}", config);
     info!("starting listener");
     let listener = match TcpListener::bind(("127.0.0.1", taskmaster::DEFAULT_PORT)) {
         Ok(l) => l,
