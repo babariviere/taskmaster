@@ -58,14 +58,13 @@ fn main() {
     let config = ConfigParser::new(&buf).parse();
     info!("config: {:?}", config);
     info!("starting listener");
-    let listener = TcpListener::bind(("127.0.0.1", taskmaster::DEFAULT_PORT)).unwrap();
-    //let listener = match TcpListener::bind(("127.0.0.1", taskmaster::DEFAULT_PORT)) {
-    //    Ok(l) => l,
-    //    Err(e) => {
-    //        error!("Error {}", e);
-    //        exit(1);
-    //    }
-    //};
+    let listener = match TcpListener::bind(("127.0.0.1", taskmaster::DEFAULT_PORT)) {
+        Ok(l) => l,
+        Err(e) => {
+            error!("Error {}", e);
+            exit(1);
+        }
+    };
     info!("listening");
     debug!("listener has start on port {}", taskmaster::DEFAULT_PORT);
     for client in listener.incoming() {
