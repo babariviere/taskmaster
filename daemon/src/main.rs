@@ -3,6 +3,8 @@
 #[macro_use]
 extern crate taskmaster;
 
+mod process;
+
 use std::io::Read;
 use std::net::TcpListener;
 use std::process::exit;
