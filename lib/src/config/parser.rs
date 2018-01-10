@@ -88,9 +88,9 @@ impl<'a> IniParser<'a> {
 }
 
 macro_rules! nbr {
-    ($dst:expr, $dst_name:expr, $src:expr) => {
+    ($dst:expr, $dst_name:expr, $src:expr, $section:expr) => {
         $dst = $src.parse().unwrap_or_else(|e| {
-            warn!("invalid field `{}` in config", $dst_name);
+            warn!("config: invalid field `{}` in section [{}]", $dst_name, $section);
             trace!("config error: {}", e);
             $dst
         });
@@ -98,12 +98,12 @@ macro_rules! nbr {
 }
 
 macro_rules! boolean {
-    ($dst:expr, $dst_name:expr, $src:expr) => {
+    ($dst:expr, $dst_name:expr, $src:expr, $section:expr) => {
         match $src.as_str() {
             "true" => $dst = true,
             "false" => $dst = false,
             v => {
-                warn!("invalid field `{}` in config", $dst_name);
+                warn!("config: invalid field `{}` in section [{}]", $dst_name, $section);
                 trace!("user have put value `{}`", v);
             }
         }
@@ -143,13 +143,10 @@ impl ConfigParser {
                         self.config.processes.push(process);
                     } else {
                         warn!("missing program name in config, program will be ignored");
-                        //::std::process::exit(1);
                     }
                 }
                 val => {
-                    // TODO: return parse error
                     warn!("unexpected value in configuration {:?}", val);
-                    //::std::process::exit(1);
                 }
             }
         }
@@ -163,22 +160,22 @@ impl ConfigParser {
             match value {
                 IniValue::Key(k, v) => match k.as_str() {
                     "logfile" => config.logfile = PathBuf::from(v),
-                    "logfile_maxbytes" => nbr!(config.logfile_maxbytes, k, v),
-                    "logfile_backups" => nbr!(config.logfile_backups, k, v),
+                    "logfile_maxbytes" => nbr!(config.logfile_maxbytes, k, v, "taskmasterd"),
+                    "logfile_backups" => nbr!(config.logfile_backups, k, v, "taskmasterd"),
                     "loglevel" => {
                         config.loglevel = Level::from_str(&v).unwrap_or_else(|_| {
-                            warn!("invalid field `loglevel` in config");
+                            warn!("config: invalid field `loglevel` in section [taskmasterd]");
                             config.loglevel
                         })
                     }
                     "pidfile" => config.pidfile = PathBuf::from(v),
                     // TODO: parse octal
-                    "umask" => nbr!(config.umask, k, v),
-                    "nodaemon" => boolean!(config.nodaemon, k, v),
-                    "minfds" => nbr!(config.minfds, k, v),
-                    "nocleanup" => boolean!(config.nocleanup, k, v),
+                    "umask" => nbr!(config.umask, k, v, "taskmasterd"),
+                    "nodaemon" => boolean!(config.nodaemon, k, v, "taskmasterd"),
+                    "minfds" => nbr!(config.minfds, k, v, "taskmasterd"),
+                    "nocleanup" => boolean!(config.nocleanup, k, v, "taskmasterd"),
                     "child_log_dir" => config.child_log_dir = PathBuf::from(v),
-                    k => warn!("unknown field `{}` in config", k),
+                    k => warn!("config: unknown field `{}` in section [taskmasterd]", k),
                 },
                 IniValue::Section(_, _) => unreachable!(),
             }
@@ -195,7 +192,7 @@ impl ConfigParser {
                     "server_ip" => match v.to_socket_addrs() {
                         Ok(mut ip) => config.server_ip = ip.next().unwrap(),
                         Err(_) => {
-                            warn!("invalid field `server_ip` in config");
+                            warn!("config: invalid field `server_ip` in section [taskmasterctl]");
                             trace!("user have put value `{}`", v);
                         }
                     },
@@ -204,9 +201,7 @@ impl ConfigParser {
                         "none" => config.history_file = None,
                         s => config.history_file = Some(PathBuf::from(s)),
                     },
-                    val => {
-                        warn!("unexpected value in configuration {:?}", val);
-                    }
+                    k => warn!("config: unknown field `{}` in section [taskmasterctl]", k),
                 },
                 IniValue::Section(_, _) => unreachable!(),
             }
@@ -217,23 +212,27 @@ impl ConfigParser {
     /// Parse process configuration
     pub fn parse_process(&mut self, name: String, values: &mut Vec<IniValue>) -> ProcessConfig {
         let mut config = ProcessConfig::default();
+        let section_name = format!("program:{}", name);
         config.name = name;
         while let Some(value) = values.pop() {
             match value {
                 IniValue::Key(k, v) => match k.as_str() {
                     "command" => config.command = v,
-                    "num_procs" => nbr!(config.num_procs, k, v),
-                    "num_procs_start" => nbr!(config.num_procs_start, k, v),
-                    "priority" => nbr!(config.priority, k, v),
-                    "auto_start" => boolean!(config.auto_start, k, v),
-                    "start_secs" => nbr!(config.start_secs, k, v),
-                    "start_retries" => nbr!(config.start_retries, k, v),
+                    "num_procs" => nbr!(config.num_procs, k, v, section_name),
+                    "num_procs_start" => nbr!(config.num_procs_start, k, v, section_name),
+                    "priority" => nbr!(config.priority, k, v, section_name),
+                    "auto_start" => boolean!(config.auto_start, k, v, section_name),
+                    "start_secs" => nbr!(config.start_secs, k, v, section_name),
+                    "start_retries" => nbr!(config.start_retries, k, v, section_name),
                     "auto_restart" => match v.as_str() {
                         "unexpected" => config.auto_restart = AutoRestartCondition::Unexpected,
                         "true" => config.auto_restart = AutoRestartCondition::True,
                         "false" => config.auto_restart = AutoRestartCondition::False,
                         v => {
-                            warn!("invalid field `{}` in config", k);
+                            warn!(
+                                "config: invalid field `{}` in section [{}]",
+                                k, section_name
+                            );
                             trace!("user have put value `{}`", v);
                         }
                     },
@@ -243,7 +242,10 @@ impl ConfigParser {
                             .filter_map(|n| n.parse().ok())
                             .collect::<Vec<i32>>();
                         if codes.is_empty() {
-                            warn!("invalid field `exit_codes` in config");
+                            warn!(
+                                "config: invalid field `exit_codes` in section [{}]",
+                                section_name
+                            );
                         } else {
                             config.exit_codes = codes;
                         }
@@ -257,11 +259,14 @@ impl ConfigParser {
                         "sigusr1" | "usr1" => config.stop_signal = StopSignal::Usr1,
                         "sigusr2" | "usr2" => config.stop_signal = StopSignal::Usr2,
                         v => {
-                            warn!("invalid field `{}` in config", k);
+                            warn!(
+                                "config: invalid field `{}` in section [{}]",
+                                k, section_name
+                            );
                             trace!("user have put value `{}`", v);
                         }
                     },
-                    "stop_wait_secs" => nbr!(config.stop_wait_secs, k, v),
+                    "stop_wait_secs" => nbr!(config.stop_wait_secs, k, v, section_name),
                     "stop_as_group" => match v.as_str() {
                         "none" => config.stop_as_group = None,
                         _ => config.stop_as_group = Some(v),
@@ -283,19 +288,35 @@ impl ConfigParser {
                         "auto" => config.stdout_logfile = OutputLog::Auto,
                         _ => config.stdout_logfile = OutputLog::File(PathBuf::from(v)),
                     },
-                    "stdout_logfile_maxbytes" => nbr!(config.stdout_logfile_maxbytes, k, v),
-                    "stdout_logfile_backups" => nbr!(config.stdout_logfile_backups, k, v),
-                    "stdout_capture_maxbytes" => nbr!(config.stdout_capture_maxbytes, k, v),
-                    "stdout_events_enabled" => boolean!(config.stdout_events_enabled, k, v),
+                    "stdout_logfile_maxbytes" => {
+                        nbr!(config.stdout_logfile_maxbytes, k, v, section_name)
+                    }
+                    "stdout_logfile_backups" => {
+                        nbr!(config.stdout_logfile_backups, k, v, section_name)
+                    }
+                    "stdout_capture_maxbytes" => {
+                        nbr!(config.stdout_capture_maxbytes, k, v, section_name)
+                    }
+                    "stdout_events_enabled" => {
+                        boolean!(config.stdout_events_enabled, k, v, section_name)
+                    }
                     "stderr_logfile" => match v.as_str() {
                         "none" => config.stderr_logfile = OutputLog::None,
                         "auto" => config.stderr_logfile = OutputLog::Auto,
                         _ => config.stdout_logfile = OutputLog::File(PathBuf::from(v)),
                     },
-                    "stderr_logfile_maxbytes" => nbr!(config.stderr_logfile_maxbytes, k, v),
-                    "stderr_logfile_backups" => nbr!(config.stderr_logfile_backups, k, v),
-                    "stderr_capture_maxbytes" => nbr!(config.stderr_capture_maxbytes, k, v),
-                    "stderr_events_enabled" => boolean!(config.stderr_events_enabled, k, v),
+                    "stderr_logfile_maxbytes" => {
+                        nbr!(config.stderr_logfile_maxbytes, k, v, section_name)
+                    }
+                    "stderr_logfile_backups" => {
+                        nbr!(config.stderr_logfile_backups, k, v, section_name)
+                    }
+                    "stderr_capture_maxbytes" => {
+                        nbr!(config.stderr_capture_maxbytes, k, v, section_name)
+                    }
+                    "stderr_events_enabled" => {
+                        boolean!(config.stderr_events_enabled, k, v, section_name)
+                    }
                     "envs" => match v.as_str() {
                         "none" => config.envs = None,
                         _ => {
@@ -316,12 +337,18 @@ impl ConfigParser {
                         _ => match v.parse() {
                             Ok(n) => config.umask = Some(n),
                             Err(e) => {
-                                warn!("invalid field `{}` in config", k);
+                                warn!(
+                                    "config: invalid field `{}` in section [{}]",
+                                    k, section_name
+                                );
                                 trace!("error: {}", e);
                             }
                         },
                     },
-                    val => warn!("unexpected value in configuration {:?}", val),
+                    k => warn!(
+                        "config: unknown field `{}` in section [{}]",
+                        k, section_name
+                    ),
                 },
                 IniValue::Section(_, _) => unreachable!(),
             }
