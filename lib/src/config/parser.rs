@@ -217,6 +217,7 @@ impl ConfigParser {
         while let Some(value) = values.pop() {
             match value {
                 IniValue::Key(k, v) => match k.as_str() {
+                    "proc_name" => config.proc_name = v,
                     "command" => config.command = v,
                     "num_procs" => nbr!(config.num_procs, k, v, section_name),
                     "num_procs_start" => nbr!(config.num_procs_start, k, v, section_name),

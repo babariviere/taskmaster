@@ -103,6 +103,7 @@ impl Default for CtlConfig {
 pub struct ProcessConfig {
     name: String,
     command: String,
+    proc_name: String,
     num_procs: u16,
     num_procs_start: u16,
     priority: u16,
@@ -137,6 +138,7 @@ impl Default for ProcessConfig {
         ProcessConfig {
             name: String::new(),
             command: String::new(),
+            proc_name: String::new(),
             num_procs: 1,
             num_procs_start: 0,
             priority: 999,
