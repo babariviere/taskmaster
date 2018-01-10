@@ -139,7 +139,7 @@ impl ConfigParser {
                     if s.starts_with("program") || s.starts_with("process") =>
                 {
                     if let Some(idx) = s.find(':') {
-                        let process = self.parse_process(s[idx..].to_string(), v);
+                        let process = self.parse_process(s[idx + 1..].to_string(), v);
                         self.config.processes.push(process);
                     } else {
                         warn!("missing program name in config, program will be ignored");
@@ -321,9 +321,7 @@ impl ConfigParser {
                             }
                         },
                     },
-                    val => {
-                        warn!("unexpected value in configuration {:?}", val);
-                    }
+                    val => warn!("unexpected value in configuration {:?}", val),
                 },
                 IniValue::Section(_, _) => unreachable!(),
             }

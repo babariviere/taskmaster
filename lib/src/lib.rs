@@ -11,6 +11,7 @@ pub mod config;
 pub mod ffi;
 pub mod parser;
 pub mod process;
+pub mod signal;
 
 /// Libc
 pub mod libc {

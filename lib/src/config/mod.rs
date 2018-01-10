@@ -5,6 +5,7 @@ mod parser;
 pub use self::parser::*;
 
 use log::Level;
+use signal::StopSignal;
 use std::env;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::PathBuf;
@@ -23,31 +24,6 @@ pub enum AutoRestartCondition {
 impl Default for AutoRestartCondition {
     fn default() -> Self {
         AutoRestartCondition::Unexpected
-    }
-}
-
-/// Signal to stop a program
-#[derive(Debug)]
-pub enum StopSignal {
-    /// Term signal
-    Term,
-    /// Hup signal
-    Hup,
-    /// Int signal
-    Int,
-    /// Quit signal
-    Quit,
-    /// Kill signal
-    Kill,
-    /// User 1 signal
-    Usr1,
-    /// User 2 signal
-    Usr2,
-}
-
-impl Default for StopSignal {
-    fn default() -> Self {
-        StopSignal::Term
     }
 }
 
