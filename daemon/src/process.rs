@@ -1,13 +1,15 @@
 //! Process module
 
 use libc;
-use std::fs::{File, OpenOptions};
+use std::fs::File;
 use std::os::unix::io::IntoRawFd;
 use std::path::PathBuf;
-use taskmaster::config::ProcessConfig;
+use taskmaster::config::*;
 use taskmaster::process::*;
+use taskmaster::ffi::Errno;
 
 /// Get process state
+#[derive(Clone, Debug, PartialEq)]
 pub enum ProcessState {
     /// Starting process
     Starting,
@@ -27,55 +29,68 @@ pub enum ProcessState {
 
 /// Process handler
 pub struct Process {
-    pid: i32,
     state: ProcessState,
-    opt: ProcessOpt,
     config: ProcessConfig,
+    count_fail: u8,
 }
 
 impl Process {
     /// Create a new process
     pub fn new(config: ProcessConfig) -> Process {
         Process {
-            pid: -1,
             state: ProcessState::Stopped,
-            opt: ProcessOpt::default(),
             config: config,
+            count_fail: 0,
         }
     }
 
-    fn handle_fail(&self) {
-        self.state = ProcessState::Backoff;
+    fn handle_fail(&mut self) {
+        self.count_fail += 1;
+        if self.count_fail < self.config.start_retries {
+            self.state = ProcessState::Backoff;
+        } else {
+            self.state = ProcessState::Fatal;
+        }
+    }
+
+    pub fn update_state(&mut self) {
+        match &self.state {
+            &ProcessState::Running(pid) => {
+                let mut status = 0;
+                let res = unsafe { libc::waitpid(pid, &mut status as *mut _, libc::WNOHANG) };
+                if res < 0 {
+                    warn!("cannot get process state for pid {}", pid);
+                    trace!("got errno {:#?}", Errno::last_error());
+                } else if res == 0 {
+                    self.state = ProcessState::Exited(status);
+                    info!(
+                        "process {} exit with status {}",
+                        self.config.proc_name, status
+                    );
+                } else if res != pid {
+                    trace!("unexpected value from waitpid: {}", res);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    pub fn get_state(&mut self) -> &ProcessState {
+        self.update_state();
+        &self.state
     }
 
     fn setup_io(&self) {
-        if let Some(ref stdin) = self.opt.stdin {
-            let file = match stdin {
-                &ChildStdio::Null => File::open("/dev/null"),
-                &ChildStdio::File(ref f) => File::open(f),
-            };
-            if let Ok(file) = file {
-                unsafe {
-                    libc::dup2(file.into_raw_fd(), libc::STDIN_FILENO);
-                }
-            }
-        }
-        if let Some(ref stdout) = self.opt.stdout {
-            let file = match stdout {
-                &ChildStdio::Null => OpenOptions::new().write(true).open("/dev/null"),
-                &ChildStdio::File(ref f) => File::create(f),
-            };
+        if let OutputLog::File(ref f) = self.config.stdout_logfile {
+            let file = File::create(f);
             if let Ok(file) = file {
                 unsafe {
                     libc::dup2(file.into_raw_fd(), libc::STDOUT_FILENO);
                 }
             }
         }
-        if let Some(ref stderr) = self.opt.stderr {
-            let file = match stderr {
-                &ChildStdio::Null => OpenOptions::new().write(true).open("/dev/null"),
-                &ChildStdio::File(ref f) => File::create(f),
-            };
+        if let OutputLog::File(ref f) = self.config.stderr_logfile {
+            let file = File::create(f);
             if let Ok(file) = file {
                 unsafe {
                     libc::dup2(file.into_raw_fd(), libc::STDERR_FILENO);
@@ -86,99 +101,33 @@ impl Process {
 
     // use waitpid with WNOHANG to get status without waiting
     pub fn spawn(&mut self) {
+        if self.state == ProcessState::Fatal {
+            return;
+        }
+        trace!("spawning process {}", self.config.proc_name);
         self.state = ProcessState::Starting;
         match fork() {
             Ok(ForkResult::Child) => {
                 self.setup_io();
                 unsafe {
-                    if let Some(umask) = self.opt.umask {
+                    if let Some(umask) = self.config.umask {
                         libc::umask(umask);
                     }
-                    if let Some(ref wd) = self.opt.working_dir {
-                        libc::chdir(wd.to_str().unwrap().as_ptr() as *const i8);
+                    if let Some(ref mut wd) = self.config.directory {
+                        if libc::chdir(wd.to_str().unwrap().as_ptr() as *const i8) == -1 {
+                            self.handle_fail();
+                        }
                     }
                 }
             }
             Ok(ForkResult::Parent(pid)) => {
-                self.pid = pid;
+                self.state = ProcessState::Running(pid);
+                info!("process {} spawned on pid {}", self.config.proc_name, pid);
             }
             Err(_) => {
                 // TODO: respawn
+                self.handle_fail();
             }
         }
-    }
-}
-
-#[derive(Debug)]
-pub enum ChildStdio {
-    Null,
-    File(PathBuf),
-}
-
-/// Process opts
-#[derive(Default, Debug)]
-pub struct ProcessOpt {
-    args: Vec<String>,
-    bin: String,
-    envs: Vec<String>,
-    working_dir: Option<PathBuf>,
-    umask: Option<u16>,
-    stdin: Option<ChildStdio>,
-    stdout: Option<ChildStdio>,
-    stderr: Option<ChildStdio>,
-}
-
-impl ProcessOpt {
-    /// Create process opts
-    pub fn new() -> ProcessOpt {
-        Self::default()
-    }
-
-    /// Set args
-    pub fn args(&mut self, args: Vec<String>) -> &mut ProcessOpt {
-        self.args = args;
-        self
-    }
-
-    /// Set bin
-    pub fn bin(&mut self, bin: String) -> &mut ProcessOpt {
-        self.bin = bin;
-        self
-    }
-
-    /// Set envs
-    pub fn envs(&mut self, envs: Vec<String>) -> &mut ProcessOpt {
-        self.envs = envs;
-        self
-    }
-
-    /// Set working dir
-    pub fn working_dir(&mut self, wd: Option<PathBuf>) -> &mut ProcessOpt {
-        self.working_dir = wd;
-        self
-    }
-
-    /// Set umask
-    pub fn umask(&mut self, umask: Option<u16>) -> &mut ProcessOpt {
-        self.umask = umask;
-        self
-    }
-
-    /// Set stdin
-    pub fn stdin(&mut self, stdin: Option<ChildStdio>) -> &mut ProcessOpt {
-        self.stdin = stdin;
-        self
-    }
-
-    /// Set stdout
-    pub fn stdout(&mut self, stdout: Option<ChildStdio>) -> &mut ProcessOpt {
-        self.stdout = stdout;
-        self
-    }
-
-    /// Set stderr
-    pub fn stderr(&mut self, stderr: Option<ChildStdio>) -> &mut ProcessOpt {
-        self.stderr = stderr;
-        self
     }
 }

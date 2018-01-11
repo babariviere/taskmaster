@@ -11,7 +11,7 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::PathBuf;
 
 /// Condition to auto restart a program
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum AutoRestartCondition {
     /// When the program exit and don't match exit codes
     Unexpected,
@@ -28,7 +28,7 @@ impl Default for AutoRestartCondition {
 }
 
 /// Logging output
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum OutputLog {
     /// No output
     None,
@@ -45,18 +45,28 @@ impl Default for OutputLog {
 }
 
 /// Configuration for taskmasterd
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct DaemonConfig {
-    logfile: PathBuf,
-    logfile_maxbytes: usize,
-    logfile_backups: u16,
-    loglevel: Level,
-    pidfile: PathBuf,
-    umask: u16,
-    nodaemon: bool,
-    minfds: i32,
-    nocleanup: bool,
-    child_log_dir: PathBuf,
+    /// Daemon log output
+    pub logfile: PathBuf,
+    /// Max log output
+    pub logfile_maxbytes: usize,
+    /// Log backups
+    pub logfile_backups: u16,
+    /// Log level
+    pub loglevel: Level,
+    /// Pid file path
+    pub pidfile: PathBuf,
+    /// Umask
+    pub umask: u16,
+    /// Disable daemon
+    pub nodaemon: bool,
+    /// Set min file descriptors
+    pub minfds: i32,
+    /// Disable cleanup
+    pub nocleanup: bool,
+    /// Log dir for children
+    pub child_log_dir: PathBuf,
 }
 
 impl Default for DaemonConfig {
@@ -78,11 +88,14 @@ impl Default for DaemonConfig {
 }
 
 /// Configuration for taskmasterctl
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct CtlConfig {
-    server_ip: SocketAddr,
-    prompt: String,
-    history_file: Option<PathBuf>,
+    /// Server ip
+    pub server_ip: SocketAddr,
+    /// Prompt
+    pub prompt: String,
+    /// Path to file history
+    pub history_file: Option<PathBuf>,
 }
 
 impl Default for CtlConfig {
@@ -99,38 +112,68 @@ impl Default for CtlConfig {
 }
 
 /// Configuration for one process (program)
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ProcessConfig {
-    name: String,
-    command: String,
-    proc_name: String,
-    num_procs: u16,
-    num_procs_start: u16,
-    priority: u16,
-    auto_start: bool,
-    start_secs: u64,
-    start_retries: u8,
-    auto_restart: AutoRestartCondition,
-    exit_codes: Vec<i32>,
-    stop_signal: StopSignal,
-    stop_wait_secs: u64,
-    stop_as_group: Option<String>,
-    kill_as_group: Option<String>,
-    user: Option<String>,
-    redirect_stderr: Option<PathBuf>,
-    stdout_logfile: OutputLog,
-    stdout_logfile_maxbytes: usize,
-    stdout_logfile_backups: u32,
-    stdout_capture_maxbytes: usize,
-    stdout_events_enabled: bool,
-    stderr_logfile: OutputLog,
-    stderr_logfile_maxbytes: usize,
-    stderr_logfile_backups: u32,
-    stderr_capture_maxbytes: usize,
-    stderr_events_enabled: bool,
-    envs: Option<Vec<String>>,
-    directory: Option<PathBuf>,
-    umask: Option<u16>,
+    /// Name
+    pub name: String,
+    /// Command
+    pub command: String,
+    /// Process name
+    pub proc_name: String,
+    /// Num of procs
+    pub num_procs: u16,
+    /// Num procs to start
+    pub num_procs_start: u16,
+    /// Priority
+    pub priority: u16,
+    /// Auto start
+    pub auto_start: bool,
+    /// Start secs
+    pub start_secs: u64,
+    /// Start retries
+    pub start_retries: u8,
+    /// Auto restart condition
+    pub auto_restart: AutoRestartCondition,
+    /// Exit codes
+    pub exit_codes: Vec<i32>,
+    /// Stop signal
+    pub stop_signal: StopSignal,
+    /// Stop wait secs
+    pub stop_wait_secs: u64,
+    /// Stop as group
+    pub stop_as_group: Option<String>,
+    /// Kill as group
+    pub kill_as_group: Option<String>,
+    /// User
+    pub user: Option<String>,
+    /// Redirect stderr
+    pub redirect_stderr: Option<PathBuf>,
+    /// Stdout logfile
+    pub stdout_logfile: OutputLog,
+    /// Stdout max bytes
+    pub stdout_logfile_maxbytes: usize,
+    /// Stdout backups
+    pub stdout_logfile_backups: u32,
+    /// Stdout capture max bytes
+    pub stdout_capture_maxbytes: usize,
+    /// Stdout events enabled
+    pub stdout_events_enabled: bool,
+    /// Stderr logfile
+    pub stderr_logfile: OutputLog,
+    /// Stderr max bytes
+    pub stderr_logfile_maxbytes: usize,
+    /// Stderr backups
+    pub stderr_logfile_backups: u32,
+    /// Stderr capture maxbytes
+    pub stderr_capture_maxbytes: usize,
+    /// Stderr events enabled
+    pub stderr_events_enabled: bool,
+    /// set envs
+    pub envs: Option<Vec<String>>,
+    /// set working directory
+    pub directory: Option<PathBuf>,
+    /// set umask
+    pub umask: Option<u16>,
 }
 
 impl Default for ProcessConfig {

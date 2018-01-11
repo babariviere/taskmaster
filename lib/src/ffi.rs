@@ -4,6 +4,7 @@ use libc;
 
 macro_rules! errno {
     ($($errno:ident)*) => {
+        #[derive(Clone, Debug)]
         pub enum Errno {
             UNKNOWN,
             $($errno,)*

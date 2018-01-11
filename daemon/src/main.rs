@@ -1,13 +1,18 @@
 #![feature(libc)]
+#![feature(nll)]
 
 #[macro_use]
 extern crate taskmaster;
 
 mod process;
 
+use process::*;
 use std::io::Read;
 use std::net::TcpListener;
 use std::process::exit;
+use std::sync::{Arc, RwLock};
+use std::thread;
+use std::time::Duration;
 use taskmaster::config::{Config, ConfigParser};
 use taskmaster::ffi::close_all_fd;
 use taskmaster::log::*;
@@ -70,6 +75,33 @@ fn main() {
                 })),
             ).unwrap(),
         )
+    });
+    let mut processes = Vec::new();
+    for process in config.processes() {
+        let p = process.clone();
+        processes.push(Process::new(p));
+    }
+    let processes_rc = Arc::new(RwLock::new(processes));
+    let processes_rc_clone = processes_rc.clone();
+    thread::spawn(move || {
+        blather!("spawning processes");
+        let processes = processes_rc_clone;
+        {
+            let mut write_lock = processes.write().unwrap();
+            for process in write_lock.iter_mut() {
+                process.spawn();
+            }
+        }
+        loop {
+            blather!("updating processes");
+            {
+                let mut write_lock = processes.write().unwrap();
+                for process in write_lock.iter_mut() {
+                    process.update_state();
+                }
+            }
+            let _ = thread::sleep(Duration::from_secs(60));
+        }
     });
     info!("starting listener");
     let listener = match TcpListener::bind(("127.0.0.1", taskmaster::DEFAULT_PORT)) {

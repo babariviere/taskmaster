@@ -169,7 +169,6 @@ impl ConfigParser {
                         })
                     }
                     "pidfile" => config.pidfile = PathBuf::from(v),
-                    // TODO: parse octal
                     "umask" => nbr!(config.umask, k, v, "taskmasterd"),
                     "nodaemon" => boolean!(config.nodaemon, k, v, "taskmasterd"),
                     "minfds" => nbr!(config.minfds, k, v, "taskmasterd"),
@@ -213,7 +212,8 @@ impl ConfigParser {
     pub fn parse_process(&mut self, name: String, values: &mut Vec<IniValue>) -> ProcessConfig {
         let mut config = ProcessConfig::default();
         let section_name = format!("program:{}", name);
-        config.name = name;
+        config.name = name.clone();
+        config.proc_name = name;
         while let Some(value) = values.pop() {
             match value {
                 IniValue::Key(k, v) => match k.as_str() {
