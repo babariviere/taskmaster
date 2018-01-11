@@ -1,34 +1,34 @@
-#![feature(libc)]
 #![feature(nll)]
 
+extern crate nix;
 #[macro_use]
 extern crate taskmaster;
 
 mod command;
 mod process;
 
+use nix::sys::stat::*;
+use nix::unistd::*;
 use process::*;
-use std::io::Read;
+use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::process::exit;
 use taskmaster::config::{Config, ConfigParser};
 use taskmaster::ffi::close_all_fd;
 use taskmaster::log::*;
-use taskmaster::libc;
-use taskmaster::process::*;
 
 fn daemonize() {
     match fork() {
-        Ok(ForkResult::Parent(pid)) => {
-            info!("running on pid {}", pid);
+        Ok(ForkResult::Parent { child }) => {
+            info!("running on pid {}", child);
             exit(0);
         }
         Ok(ForkResult::Child) => {}
         Err(_) => exit(1),
     }
     unsafe {
-        libc::chdir("/".as_ptr() as *const _);
-        libc::umask(0);
+        chdir("/");
+        umask(Mode::empty());
         close_all_fd();
     }
 }
@@ -80,8 +80,15 @@ fn main() {
         processes.push(Process::new(p));
     }
     blather!("spawning processes");
+    // TODO: use threading from rust with Arc and Mutex
     for process in &mut processes {
-        process.spawn();
+        match fork() {
+            Ok(ForkResult::Child) => {
+                process.spawn();
+                loop {}
+            }
+            _ => {}
+        }
     }
     info!("starting listener");
     let listener = match TcpListener::bind(("127.0.0.1", taskmaster::DEFAULT_PORT)) {
@@ -106,6 +113,16 @@ fn main() {
                     }
                     (0xca, 0xfe, 0xba, 0xbe) => {
                         info!("wave from {}", stream.peer_addr().unwrap());
+                    }
+                    (0xaa, 0xaa, 0xaa, 0xaa) => {
+                        info!("status request from {}", stream.peer_addr().unwrap());
+                        for process in &mut processes {
+                            let name = process.proc_name().to_owned();
+                            let state = process.get_state();
+                            let status = format!("{} {:?}\n", name, state);
+                            stream.write(status.as_bytes()).unwrap();
+                        }
+                        stream.write(b"end\n").unwrap();
                     }
                     _ => {}
                 }

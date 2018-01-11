@@ -1,7 +1,9 @@
 //! Manage signal
 
-use libc;
-use ffi::Errno;
+use nix::libc;
+use nix::sys::signal::kill;
+use nix::sys::signal::Signal;
+use nix::unistd::Pid;
 
 /// Signal to stop a program
 #[derive(Clone, Copy, Debug)]
@@ -25,13 +27,8 @@ pub enum StopSignal {
 
 impl StopSignal {
     /// Kill a process
-    pub fn kill(&self, pid: libc::c_int) -> Result<(), Errno> {
-        unsafe {
-            match libc::kill(pid, *self as libc::c_int) {
-                0 => Ok(()),
-                _ => Err(Errno::last_error()),
-            }
-        }
+    pub fn kill(&self, pid: Pid) -> ::nix::Result<()> {
+        kill(pid, Some(Signal::from_c_int(*self as i32).unwrap()))
     }
 }
 

@@ -1,6 +1,6 @@
 //! Command parse
 
-use libc::{self, c_char};
+use nix::unistd::execve;
 use std::env;
 use std::ffi::CString;
 use std::path::Path;
@@ -49,13 +49,8 @@ fn resolve_path(s: &str) -> String {
     s.to_owned()
 }
 
-fn array_to_c_array(args: &[CString]) -> Vec<*const c_char> {
-    let mut args_p: Vec<*const c_char> = args.iter().map(|s| s.as_ptr()).collect();
-    args_p.push(ptr::null());
-    args_p
-}
-
 /// Command structure
+#[derive(Debug)]
 pub struct Command {
     path: CString,
     args: Vec<CString>,
@@ -87,13 +82,7 @@ impl Command {
     }
 
     /// Exec
-    pub fn exec(&self) -> i32 {
-        unsafe {
-            return libc::execve(
-                self.path.as_ptr(),
-                array_to_c_array(self.args.as_slice()).as_ptr(),
-                array_to_c_array(self.env.as_slice()).as_ptr(),
-            );
-        }
+    pub fn exec(&self) -> ::nix::Result<()> {
+        execve(&self.path, self.args.as_slice(), self.env.as_slice()).map(|v| {})
     }
 }

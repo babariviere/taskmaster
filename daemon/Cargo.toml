@@ -5,3 +5,4 @@ authors = ["babariviere <babariviere@protonmail.com>"]
 
 [dependencies]
 taskmaster = {path = "../lib"}
+nix = "0.9.0"
