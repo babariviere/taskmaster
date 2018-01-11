@@ -1,5 +1,6 @@
 //! Process module
 
+use command::Command;
 use libc;
 use std::fs::File;
 use std::os::unix::io::IntoRawFd;
@@ -29,6 +30,7 @@ pub enum ProcessState {
 
 /// Process handler
 pub struct Process {
+    command: Command,
     state: ProcessState,
     config: ProcessConfig,
     count_fail: u8,
@@ -38,6 +40,7 @@ impl Process {
     /// Create a new process
     pub fn new(config: ProcessConfig) -> Process {
         Process {
+            command: Command::new(&config.command, config.envs.clone().unwrap_or(Vec::new())),
             state: ProcessState::Stopped,
             config: config,
             count_fail: 0,
@@ -51,6 +54,7 @@ impl Process {
         } else {
             self.state = ProcessState::Fatal;
         }
+        ::std::process::exit(1);
     }
 
     pub fn update_state(&mut self) {
@@ -119,6 +123,10 @@ impl Process {
                         }
                     }
                 }
+                self.command.exec();
+                warn!("failed to execute {}", self.config.proc_name);
+                trace!("got errno: {:#?}", Errno::last_error());
+                self.handle_fail();
             }
             Ok(ForkResult::Parent(pid)) => {
                 self.state = ProcessState::Running(pid);

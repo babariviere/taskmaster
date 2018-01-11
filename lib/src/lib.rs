@@ -19,4 +19,4 @@ pub mod libc {
 }
 
 /// Taskmaster's default port
-pub const DEFAULT_PORT: u16 = 7089;
+pub const DEFAULT_PORT: u16 = 9450;

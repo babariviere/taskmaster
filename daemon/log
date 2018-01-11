@@ -1,0 +1,12 @@
+[trace] daemon/src/command.rs::68 command: cat /Users/briviere/.zshrc
+[trace] daemon/src/command.rs::75 path: /bin/cat
+[trace] daemon/src/command.rs::76 args: [
+    "cat",
+    "/Users/briviere/.zshrc"
+]
+[blather] daemon/src/main.rs::82 spawning processes
+[trace] daemon/src/process.rs::111 spawning process theprogramname
+[info] process theprogramname spawned on pid 51300
+[info] starting listener
+[info] listening
+[debug] daemon/src/main.rs::95 listener has start on port 9450
