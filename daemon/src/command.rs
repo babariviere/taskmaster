@@ -4,7 +4,6 @@ use nix::unistd::execve;
 use std::env;
 use std::ffi::CString;
 use std::path::Path;
-use std::ptr;
 
 /// Split ident
 fn split_ident(s: &str) -> Vec<String> {
@@ -83,6 +82,6 @@ impl Command {
 
     /// Exec
     pub fn exec(&self) -> ::nix::Result<()> {
-        execve(&self.path, self.args.as_slice(), self.env.as_slice()).map(|v| {})
+        execve(&self.path, self.args.as_slice(), self.env.as_slice()).map(|_v| {})
     }
 }

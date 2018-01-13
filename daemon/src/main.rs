@@ -13,6 +13,8 @@ use process::*;
 use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::process::exit;
+use std::sync::{Arc, Mutex};
+use std::thread;
 use taskmaster::config::{Config, ConfigParser};
 use taskmaster::ffi::close_all_fd;
 use taskmaster::log::*;
@@ -26,17 +28,15 @@ fn daemonize() {
         Ok(ForkResult::Child) => {}
         Err(_) => exit(1),
     }
-    unsafe {
-        chdir("/");
-        umask(Mode::empty());
-        close_all_fd();
-    }
+    chdir("/").unwrap();
+    umask(Mode::empty());
+    close_all_fd();
 }
 
 fn get_config() -> Config {
     let mut f = ::std::fs::File::open("/Users/briviere/projects/taskmaster/sample.ini").unwrap();
     let mut buf = String::new();
-    f.read_to_string(&mut buf);
+    f.read_to_string(&mut buf).unwrap();
     init_logger(|logger| {
         logger.add_output(Output::stdout(
             LevelFilter::Trace,
@@ -77,18 +77,15 @@ fn main() {
     let mut processes = Vec::new();
     for process in config.processes() {
         let p = process.clone();
-        processes.push(Process::new(p));
+        processes.push(Arc::new(Mutex::new(Process::new(p))));
     }
     blather!("spawning processes");
     // TODO: use threading from rust with Arc and Mutex
-    for process in &mut processes {
-        match fork() {
-            Ok(ForkResult::Child) => {
-                process.spawn();
-                loop {}
-            }
-            _ => {}
-        }
+    for process in &processes {
+        let process = process.clone();
+        thread::spawn(move || {
+            process.lock().unwrap().spawn();
+        });
     }
     info!("starting listener");
     let listener = match TcpListener::bind(("127.0.0.1", taskmaster::DEFAULT_PORT)) {
@@ -116,7 +113,8 @@ fn main() {
                     }
                     (0xaa, 0xaa, 0xaa, 0xaa) => {
                         info!("status request from {}", stream.peer_addr().unwrap());
-                        for process in &mut processes {
+                        for process in &processes {
+                            let mut process = process.lock().unwrap();
                             let name = process.proc_name().to_owned();
                             let state = process.get_state();
                             let status = format!("{} {:?}\n", name, state);

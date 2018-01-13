@@ -1,13 +1,10 @@
 //! Process module
 
 use command::Command;
-use nix::sys::wait;
+use nix::fcntl::*;
+use nix::sys::{stat, wait};
 use nix::unistd::*;
-use std::fs::File;
-use std::os::unix::io::IntoRawFd;
-use std::path::PathBuf;
-use std::thread;
-use std::time::Duration;
+use std::os::unix::io::*;
 use taskmaster::config::*;
 
 /// Get process state
@@ -16,7 +13,7 @@ pub enum ProcessState {
     /// Starting process
     Starting,
     /// In running state, param is pid
-    Running(Pid),
+    Running(ProcessHolder),
     /// Fail start
     Backoff,
     /// Stopping process
@@ -27,6 +24,60 @@ pub enum ProcessState {
     Exited(i8),
     /// Fail start a lot of time
     Fatal,
+}
+
+// TODO: process holder with pid, stdin, stdout, stderr
+// TODO: use signal to handle process
+#[derive(Clone, Debug, PartialEq)]
+pub struct ProcessHolder {
+    pid: Pid,
+    stdin: Option<RawFd>,
+    stdout: Option<RawFd>,
+    stderr: Option<RawFd>,
+}
+
+impl ProcessHolder {
+    /// create a new process holder
+    pub fn new(pid: Pid) -> ProcessHolder {
+        ProcessHolder {
+            pid: pid,
+            stdin: None,
+            stdout: None,
+            stderr: None,
+        }
+    }
+
+    /// set stdin
+    pub fn stdin(mut self, stdin: RawFd) -> ProcessHolder {
+        self.stdin = Some(stdin);
+        self
+    }
+
+    /// Set stdout
+    pub fn stdout(mut self, stdout: RawFd) -> ProcessHolder {
+        self.stdout = Some(stdout);
+        self
+    }
+
+    /// Set stderr
+    pub fn stderr(mut self, stderr: RawFd) -> ProcessHolder {
+        self.stderr = Some(stderr);
+        self
+    }
+
+    /// Get stdin
+    pub fn get_stdin(&self) -> Option<RawFd> {
+        self.stdin
+    }
+
+    /// Get stdout
+    pub fn get_stdout(&self) -> Option<RawFd> {
+        self.stdout
+    }
+
+    pub fn get_stderr(&self) -> Option<RawFd> {
+        self.stderr
+    }
 }
 
 /// Process handler
@@ -65,7 +116,7 @@ impl Process {
 
     fn track_state(&mut self) {
         match &self.state {
-            &ProcessState::Running(pid) => {
+            &ProcessState::Running(ProcessHolder { pid, .. }) => {
                 trace!("tracking state");
                 match wait::waitpid(pid, None) {
                     Ok(wait::WaitStatus::Exited(_, status)) => {
@@ -91,32 +142,15 @@ impl Process {
         &self.state
     }
 
-    fn setup_io(&self) {
-        // TODO: fix it
-        //if let OutputLog::File(ref f) = self.config.stdout_logfile {
-        //    let file = File::create(f);
-        //    if let Ok(file) = file {
-        //        unsafe {
-        //            libc::dup2(file.into_raw_fd(), libc::STDOUT_FILENO);
-        //        }
-        //    }
-        //}
-        //if let OutputLog::File(ref f) = self.config.stderr_logfile {
-        //    let file = File::create(f);
-        //    if let Ok(file) = file {
-        //        unsafe {
-        //            libc::dup2(file.into_raw_fd(), libc::STDERR_FILENO);
-        //        }
-        //    }
-        //}
-    }
-
     pub fn spawn(&mut self) {
         if self.state == ProcessState::Fatal {
             return;
         }
         trace!("spawning process {}", self.config.proc_name);
         self.state = ProcessState::Starting;
+        let (c_stdin, p_stdin) = pipe().unwrap();
+        let (p_stdout, c_stdout) = pipe().unwrap();
+        let (p_stderr, c_stderr) = pipe().unwrap();
         match fork() {
             Ok(ForkResult::Child) => {
                 //self.setup_io();
@@ -130,6 +164,15 @@ impl Process {
                 //        }
                 //    }
                 //}
+                open("/dev/stdin", OFlag::all(), stat::Mode::all()).unwrap();
+                open("/dev/stdout", OFlag::all(), stat::Mode::all()).unwrap();
+                open("/dev/stderr", OFlag::all(), stat::Mode::all()).unwrap();
+                close(p_stdin).unwrap();
+                close(p_stdout).unwrap();
+                close(p_stderr).unwrap();
+                dup2(0, c_stdin).unwrap();
+                dup2(1, c_stdout).unwrap();
+                dup2(2, c_stderr).unwrap();
                 trace!("executing command for process {}", self.config.proc_name);
                 match self.command.exec() {
                     Ok(_) => {
@@ -143,10 +186,17 @@ impl Process {
                 ::std::process::exit(1);
             }
             Ok(ForkResult::Parent { child }) => {
-                self.state = ProcessState::Running(child);
+                let holder = ProcessHolder::new(child)
+                    .stdin(p_stdin)
+                    .stdout(p_stdout)
+                    .stderr(p_stderr);
+                close(c_stdin).unwrap();
+                close(c_stdout).unwrap();
+                close(c_stderr).unwrap();
+                self.state = ProcessState::Running(holder);
                 info!("process {} spawned on pid {}", self.config.proc_name, child);
                 self.track_state();
-                ::std::process::exit(0);
+                //::std::process::exit(0);
             }
             Err(e) => {
                 // TODO: respawn
