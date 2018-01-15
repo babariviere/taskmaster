@@ -1,10 +1,9 @@
 [blather] daemon/src/main.rs::82 spawning processes
+[trace] daemon/src/process.rs::160 spawning process theprogramname
 [info] starting listener
 [info] listening
-[debug] daemon/src/main.rs::99 listener has start on port 9450
-[trace] daemon/src/process.rs::149 spawning process theprogramname
-[info] process theprogramname spawned on pid 28226
-[trace] daemon/src/process.rs::120 tracking state
-[info] process theprogramname exited with code 0
-[info] connected with 127.0.0.1:49476
-[info] wave from 127.0.0.1:49476
+[debug] daemon/src/main.rs::100 listener has start on port 9450
+[info] process theprogramname spawned on pid 53853
+[trace] daemon/src/process.rs::123 tracking state
+[info] connected with 127.0.0.1:64514
+[info] status request from 127.0.0.1:64514

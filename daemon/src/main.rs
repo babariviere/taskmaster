@@ -13,7 +13,7 @@ use process::*;
 use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::process::exit;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 use std::thread;
 use taskmaster::config::{Config, ConfigParser};
 use taskmaster::ffi::close_all_fd;
@@ -77,14 +77,15 @@ fn main() {
     let mut processes = Vec::new();
     for process in config.processes() {
         let p = process.clone();
-        processes.push(Arc::new(Mutex::new(Process::new(p))));
+        processes.push(Arc::new(RwLock::new(Process::new(p))));
     }
     blather!("spawning processes");
     // TODO: use threading from rust with Arc and Mutex
     for process in &processes {
         let process = process.clone();
         thread::spawn(move || {
-            process.lock().unwrap().spawn();
+            process.write().unwrap().spawn();
+            process.read().unwrap().track_state();
         });
     }
     info!("starting listener");
@@ -114,10 +115,10 @@ fn main() {
                     (0xaa, 0xaa, 0xaa, 0xaa) => {
                         info!("status request from {}", stream.peer_addr().unwrap());
                         for process in &processes {
-                            let mut process = process.lock().unwrap();
+                            let mut process = process.read().unwrap();
                             let name = process.proc_name().to_owned();
                             let state = process.get_state();
-                            let status = format!("{} {:?}\n", name, state);
+                            let status = format!("{} {:?}\n", name, *state);
                             stream.write(status.as_bytes()).unwrap();
                         }
                         stream.write(b"end\n").unwrap();
