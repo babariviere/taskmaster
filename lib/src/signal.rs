@@ -28,6 +28,7 @@ pub enum StopSignal {
 impl StopSignal {
     /// Kill a process
     pub fn kill(&self, pid: Pid) -> ::nix::Result<()> {
+        trace!("killing pid {} with signal {:?}", pid, self);
         kill(pid, Some(Signal::from_c_int(*self as i32).unwrap()))
     }
 }

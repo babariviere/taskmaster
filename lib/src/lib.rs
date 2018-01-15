@@ -6,6 +6,7 @@ extern crate nix;
 
 #[macro_use]
 pub mod log;
+pub mod api;
 pub mod config;
 pub mod ffi;
 pub mod parser;

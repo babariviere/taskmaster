@@ -10,11 +10,12 @@ mod process;
 use nix::sys::stat::*;
 use nix::unistd::*;
 use process::*;
-use std::io::{Read, Write};
+use std::io::Read;
 use std::net::TcpListener;
 use std::process::exit;
 use std::sync::{Arc, RwLock};
 use std::thread;
+use taskmaster::api;
 use taskmaster::config::{Config, ConfigParser};
 use taskmaster::ffi::close_all_fd;
 use taskmaster::log::*;
@@ -101,29 +102,37 @@ fn main() {
     for client in listener.incoming() {
         match client {
             Ok(mut stream) => {
-                info!("connected with {}", stream.peer_addr().unwrap());
-                let mut buf = [0; 4];
-                stream.read(&mut buf).unwrap();
-                match (buf[0], buf[1], buf[2], buf[3]) {
-                    (0xde, 0xad, 0xbe, 0xef) => {
-                        warn!("exit instruction from {}", stream.peer_addr().unwrap());
-                        break;
-                    }
-                    (0xca, 0xfe, 0xba, 0xbe) => {
-                        info!("wave from {}", stream.peer_addr().unwrap());
-                    }
-                    (0xaa, 0xaa, 0xaa, 0xaa) => {
-                        info!("status request from {}", stream.peer_addr().unwrap());
-                        for process in &processes {
-                            let mut process = process.read().unwrap();
-                            let name = process.proc_name().to_owned();
-                            let state = process.get_state();
-                            let status = format!("{} {:?}\n", name, *state);
-                            stream.write(status.as_bytes()).unwrap();
+                let addr = stream.peer_addr().unwrap();
+                info!("connected with {}", addr);
+                loop {
+                    let recv = api::recv_data(&mut stream).unwrap();
+                    match recv.trim() {
+                        "shutdown" => {
+                            warn!("shutdown instruction from {}", addr);
+                            break;
                         }
-                        stream.write(b"end\n").unwrap();
+                        "wave" => {
+                            info!("wave from {}", addr);
+                        }
+                        "status" => {
+                            info!("status request from {}", addr);
+                            let mut data = String::new();
+                            for process in &processes {
+                                let mut process = process.read().unwrap();
+                                let name = process.proc_name().to_owned();
+                                let state = process.get_state();
+                                data.push_str(&format!("{} {:?}\n", name, *state));
+                            }
+                            api::send_data(&mut stream, data);
+                        }
+                        "kill" => {
+                            info!("kill request from {}", addr);
+                            for process in &processes {
+                                process.read().unwrap().kill();
+                            }
+                        }
+                        s => warn!("unknown request `{}` from {}", s, addr),
                     }
-                    _ => {}
                 }
             }
             Err(e) => {

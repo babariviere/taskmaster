@@ -4,13 +4,14 @@ extern crate taskmaster;
 use std::env;
 use std::io::{stdin, stdout, BufRead, BufReader, Read, Write};
 use std::net::TcpStream;
+use taskmaster::api;
 use taskmaster::config::*;
 use taskmaster::log::*;
 
 fn main() {
     init_logger(|logger| {
         logger.add_output(Output::stdout(
-            LevelFilter::Info,
+            LevelFilter::Blather,
             Some(Box::new(|log| {
                 format!("[{}] {}", log.level(), log.message())
             })),
@@ -37,26 +38,18 @@ fn main() {
             break;
         }
         match buf.trim() {
-            "exit" => {
-                stream.write(&[0xde, 0xad, 0xbe, 0xef]).unwrap();
+            "shutdown" => {
+                api::send_data(&mut stream, b"shutdown").unwrap();
             }
             "wave" => {
-                stream.write(&[0xca, 0xfe, 0xba, 0xbe]).unwrap();
+                api::send_data(&mut stream, b"wave").unwrap();
             }
             "status" => {
-                stream.write(&[0xaa, 0xaa, 0xaa, 0xaa]).unwrap();
-                let mut stream = BufReader::new(&mut stream);
-                loop {
-                    let mut buf = String::new();
-                    stream.read_line(&mut buf).unwrap();
-                    let trimmed = buf.trim();
-                    if trimmed == "end" {
-                        break;
-                    }
-                    println!("{}", trimmed);
-                }
+                api::send_data(&mut stream, b"status").unwrap();
+                let data = api::recv_data(&mut stream).unwrap();
+                println!("{}", data.trim());
             }
-            _ => {}
+            s => api::send_data(&mut stream, s).unwrap(),
         }
     }
 }

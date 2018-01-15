@@ -1,9 +1,32 @@
-[blather] daemon/src/main.rs::82 spawning processes
-[trace] daemon/src/process.rs::160 spawning process theprogramname
+[blather] daemon/src/main.rs::83 spawning processes
 [info] starting listener
 [info] listening
-[debug] daemon/src/main.rs::100 listener has start on port 9450
-[info] process theprogramname spawned on pid 53853
-[trace] daemon/src/process.rs::123 tracking state
-[info] connected with 127.0.0.1:64514
-[info] status request from 127.0.0.1:64514
+[debug] daemon/src/main.rs::101 listener has start on port 9450
+[trace] daemon/src/process.rs::188 spawning process theprogramname
+[info] process theprogramname spawned on pid 86341
+[trace] daemon/src/process.rs::143 tracking state
+[info] connected with 127.0.0.1:50670
+[blather] lib/src/api.rs::35 data readed
+[blather] lib/src/api.rs::37 sent OK
+[info] status request from 127.0.0.1:50670
+[blather] lib/src/api.rs::12 data are sent
+[blather] lib/src/api.rs::16 received OK
+[blather] lib/src/api.rs::35 data readed
+[blather] lib/src/api.rs::37 sent OK
+[info] kill request from 127.0.0.1:50670
+[trace] lib/src/signal.rs::31 killing pid 86341 with signal Term
+[warn] unexpected error for pid 86341
+[trace] daemon/src/process.rs::166 error: ECHILD: No child processes
+[blather] lib/src/api.rs::35 data readed
+[blather] lib/src/api.rs::37 sent OK
+[info] status request from 127.0.0.1:50670
+[blather] lib/src/api.rs::12 data are sent
+[blather] lib/src/api.rs::16 received OK
+[blather] lib/src/api.rs::35 data readed
+[blather] lib/src/api.rs::37 sent OK
+[info] status request from 127.0.0.1:50670
+[blather] lib/src/api.rs::12 data are sent
+[blather] lib/src/api.rs::16 received OK
+[blather] lib/src/api.rs::35 data readed
+[blather] lib/src/api.rs::37 sent OK
+[warn] unknown request `ls` from 127.0.0.1:50670

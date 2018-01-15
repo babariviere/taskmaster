@@ -116,6 +116,26 @@ impl Process {
         ::std::process::exit(1);
     }
 
+    pub fn kill(&self) {
+        let state = self.state.read().unwrap().clone();
+        match state {
+            ProcessState::Running(ProcessHolder { pid, .. }) => {
+                {
+                    let mut state_lock = self.state.write().unwrap();
+                    *state_lock = ProcessState::Stopping;
+                }
+                match self.config.stop_signal.kill(pid) {
+                    Ok(_) => {}
+                    Err(e) => {
+                        error!("killing pid {} failed", pid);
+                        trace!("error: {}", e);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
     pub fn track_state(&self) {
         let state = self.state.read().unwrap().clone();
         match state {
@@ -132,6 +152,15 @@ impl Process {
                             *state_lock = ProcessState::Exited(status);
                             break;
                         }
+                        Ok(wait::WaitStatus::Signaled(_, _, _)) => {
+                            let mut state_lock = self.state.write().unwrap();
+                            if *state_lock == ProcessState::Stopping {
+                                *state_lock = ProcessState::Stopped;
+                            }
+                        }
+                        Ok(s) => {
+                            blather!("pid {} received status {:#?}", pid, s);
+                        }
                         Err(e) => {
                             warn!("unexpected error for pid {}", pid);
                             trace!("error: {}", e);
@@ -139,7 +168,6 @@ impl Process {
                             *state_lock = ProcessState::Stopped;
                             break;
                         }
-                        _ => {}
                     }
                 }
             }
