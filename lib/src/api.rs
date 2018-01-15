@@ -1,5 +1,7 @@
 //! API for communicating between server and client
+
 use std::io::{self, BufRead, BufReader, Read, Write};
+use std::str::FromStr;
 
 /// API request kind
 pub enum ApiKind {
@@ -21,11 +23,27 @@ pub enum ApiKind {
     Version,
 }
 
+/// Argument kind from api
 pub enum ApiArgKind {
     /// Target process
     Target,
     /// Other request
     Other(String),
+}
+
+impl<'a> From<&'a str> for ApiArgKind {
+    fn from(s: &'a str) -> Self {
+        ApiArgKind::from(s.to_owned())
+    }
+}
+
+impl From<String> for ApiArgKind {
+    fn from(s: String) -> Self {
+        match s.as_ref() {
+            "target" => ApiArgKind::Target,
+            _ => ApiArgKind::Other(s),
+        }
+    }
 }
 
 /// API request argument
@@ -42,12 +60,72 @@ impl ApiArg {
             val: val,
         }
     }
+
+    /// Get argument kind
+    pub fn kind(&self) -> &ApiArgKind {
+        &self.kind
+    }
+
+    /// Get argument value
+    pub fn value(&self) -> &str {
+        &self.val
+    }
+}
+
+impl FromStr for ApiArg {
+    type Error = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Error> {
+        let eq_sign = s.find('=');
+        if eq_sign.is_none() {
+            return Err(());
+        }
+    }
 }
 
 /// API request
 pub struct ApiRequest {
     kind: ApiKind,
     args: Vec<ApiArg>,
+}
+
+impl ApiRequest {
+    /// Send api request
+    pub fn send<S: Read + Write>(self) -> io::Result<()> {}
+}
+
+/// Request builder
+pub struct ApiRequestBuilder {
+    req: ApiRequest,
+}
+
+impl ApiRequestBuilder {
+    /// Create request builder
+    pub fn new(kind: ApiKind) -> ApiRequestBuilder {
+        ApiRequestBuilder {
+            req: ApiRequest {
+                kind: kind,
+                args: Vec::new(),
+            },
+        }
+    }
+
+    /// Set kind
+    pub fn kind(mut self, kind: ApiKind) -> ApiRequestBuilder {
+        self.req.kind = Some(kind);
+        self
+    }
+
+    /// Add arg
+    pub fn arg(mut self, kind: ApiArgKind, val: String) -> ApiRequestBuilder {
+        self.req.args.push(ApiArg::new(kind, val));
+        self
+    }
+
+    /// Compute
+    pub fn build(self) -> ApiRequest {
+        self.req
+    }
 }
 
 /// Send chunk of data
