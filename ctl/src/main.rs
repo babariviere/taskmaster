@@ -4,7 +4,7 @@ extern crate taskmaster;
 use std::env;
 use std::io::{stdin, stdout, BufRead, BufReader, Read, Write};
 use std::net::TcpStream;
-use taskmaster::api;
+use taskmaster::api::{self, ApiKind, ApiRequestBuilder};
 use taskmaster::config::*;
 use taskmaster::log::*;
 
@@ -39,17 +39,22 @@ fn main() {
         }
         match buf.trim() {
             "shutdown" => {
-                api::send_data(&mut stream, b"shutdown").unwrap();
-            }
-            "wave" => {
-                api::send_data(&mut stream, b"wave").unwrap();
+                ApiRequestBuilder::new(ApiKind::Shutdown)
+                    .build()
+                    .send(&mut stream);
             }
             "status" => {
-                api::send_data(&mut stream, b"status").unwrap();
+                ApiRequestBuilder::new(ApiKind::Status)
+                    .build()
+                    .send(&mut stream);
+                //api::send_data(&mut stream, b"status").unwrap();
                 let data = api::recv_data(&mut stream).unwrap();
                 println!("{}", data.trim());
             }
-            s => api::send_data(&mut stream, s).unwrap(),
+            //s => api::send_data(&mut stream, s).unwrap(),
+            _ => {
+                error!("c'est pas valide ca monsieur");
+            }
         }
     }
 }

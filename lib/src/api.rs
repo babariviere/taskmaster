@@ -151,6 +151,16 @@ impl ApiRequest {
         };
         ApiRequest::from_str(&data)
     }
+
+    /// Get api request kind
+    pub fn kind(&self) -> &ApiKind {
+        &self.kind
+    }
+
+    /// Get api request args
+    pub fn args(&self) -> &Vec<ApiArg> {
+        &self.args
+    }
 }
 
 impl FromStr for ApiRequest {
