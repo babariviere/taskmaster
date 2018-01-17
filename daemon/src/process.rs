@@ -1,8 +1,7 @@
 //! Process module
 
 use command::Command;
-use nix::fcntl::*;
-use nix::sys::{stat, wait};
+use nix::sys::wait;
 use nix::unistd::*;
 use std::os::unix::io::*;
 use std::sync::{RwLock, RwLockReadGuard};

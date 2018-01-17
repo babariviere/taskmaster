@@ -4,6 +4,7 @@ extern crate nix;
 #[macro_use]
 extern crate taskmaster;
 
+mod client;
 mod command;
 mod process;
 
@@ -15,10 +16,11 @@ use std::net::TcpListener;
 use std::process::exit;
 use std::sync::{Arc, RwLock};
 use std::thread;
-use taskmaster::api;
 use taskmaster::config::{Config, ConfigParser};
 use taskmaster::ffi::close_all_fd;
 use taskmaster::log::*;
+
+type ProcessSync = Arc<RwLock<Process>>;
 
 fn daemonize() {
     match fork() {
@@ -80,9 +82,9 @@ fn main() {
         let p = process.clone();
         processes.push(Arc::new(RwLock::new(Process::new(p))));
     }
+    let processes = Arc::new(processes);
     blather!("spawning processes");
-    // TODO: use threading from rust with Arc and Mutex
-    for process in &processes {
+    for process in processes.iter() {
         let process = process.clone();
         thread::spawn(move || {
             process.write().unwrap().spawn();
@@ -102,38 +104,10 @@ fn main() {
     for client in listener.incoming() {
         match client {
             Ok(mut stream) => {
-                let addr = stream.peer_addr().unwrap();
-                info!("connected with {}", addr);
-                loop {
-                    let recv = api::recv_data(&mut stream).unwrap();
-                    match recv.trim() {
-                        "shutdown" => {
-                            warn!("shutdown instruction from {}", addr);
-                            break;
-                        }
-                        "wave" => {
-                            info!("wave from {}", addr);
-                        }
-                        "status" => {
-                            info!("status request from {}", addr);
-                            let mut data = String::new();
-                            for process in &processes {
-                                let mut process = process.read().unwrap();
-                                let name = process.proc_name().to_owned();
-                                let state = process.get_state();
-                                data.push_str(&format!("{} {:?}\n", name, *state));
-                            }
-                            api::send_data(&mut stream, data);
-                        }
-                        "kill" => {
-                            info!("kill request from {}", addr);
-                            for process in &processes {
-                                process.read().unwrap().kill();
-                            }
-                        }
-                        s => warn!("unknown request `{}` from {}", s, addr),
-                    }
-                }
+                let processes = processes.clone();
+                thread::spawn(move || {
+                    client::handle_client(stream, processes);
+                });
             }
             Err(e) => {
                 error!("connection failed {}", e);
