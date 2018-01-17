@@ -19,6 +19,7 @@ pub fn handle_client(mut stream: TcpStream, processes: Arc<Vec<ProcessSync>>) {
                 continue;
             }
         };
+        trace!("request: {}", req);
         match req.kind() {
             &ApiKind::Shutdown => {
                 warn!("shutdown instruction from {}", addr);

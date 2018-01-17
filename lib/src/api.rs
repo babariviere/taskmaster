@@ -175,10 +175,7 @@ impl FromStr for ApiRequest {
             None => return Err("missing bracket".to_owned()),
         };
         let kind = ApiKind::from_str(&s[1..idx]).map_err(|s| format!("unexpected value {}", s))?;
-        if s.len() < (idx + 2) {
-            return Err("missing arguments".to_owned());
-        }
-        let args = s[idx + 2..]
+        let args = s[idx + 1..]
             .split(',')
             .filter_map(|s| ApiArg::from_str(s).ok())
             .collect();
@@ -193,7 +190,7 @@ impl Display for ApiRequest {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "[{}] {}",
+            "[{}]{}",
             self.kind.to_string(),
             self.args
                 .iter()
