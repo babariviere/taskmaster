@@ -1,52 +1,87 @@
 //! API for communicating between server and client
 
 use std::io::{self, BufRead, BufReader, Read, Write};
+use std::fmt::{self, Display};
 use std::str::FromStr;
 
+macro_rules! impl_enum_str {
+    (
+        $(#[$attr:meta])*
+        pub enum $target:ident {
+            $(
+                $(#[$doc:meta])*
+                $e:ident => $s:tt
+            ),*
+        }
+        $($extra:item)*
+    ) => (
+        $(#[$attr])*
+        pub enum $target {
+            $(
+                $(#[$doc])*
+                $e
+            ),*
+        }
+
+        $($extra)*
+
+        impl FromStr for $target {
+            type Err = String;
+
+            fn from_str(s: &str) -> Result<$target, String> {
+                match s {
+                    $(
+                        $s => Ok($target::$e),
+                    )*
+                    _ => Err(s.to_owned()),
+                }
+            }
+        }
+
+        impl Display for $target {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                match self {
+                    $(
+                        &$target::$e => write!(f, $s),
+                    )*
+                }
+            }
+        }
+    )
+}
+
+impl_enum_str! (
 /// API request kind
+#[derive(Debug, PartialEq)]
 pub enum ApiKind {
     /// Request daemon log
-    DaemonLog,
+    DaemonLog => "daemon_log",
     /// Request process log
-    Log,
+    Log => "log",
     /// Request process status
-    Status,
+    Status => "status",
     /// Request process kill
-    Kill,
+    Kill => "kill",
     /// Request process spawning
-    Start,
+    Start => "start",
     /// Request process restart
-    Restart,
+    Restart => "restart",
     /// Request server shutdown
-    Shutdown,
+    Shutdown => "shutdown",
     /// Request server version
-    Version,
-}
+    Version => "version"
+});
 
+impl_enum_str! (
 /// Argument kind from api
+#[derive(Debug, PartialEq)]
 pub enum ApiArgKind {
     /// Target process
-    Target,
-    /// Other request
-    Other(String),
-}
-
-impl<'a> From<&'a str> for ApiArgKind {
-    fn from(s: &'a str) -> Self {
-        ApiArgKind::from(s.to_owned())
-    }
-}
-
-impl From<String> for ApiArgKind {
-    fn from(s: String) -> Self {
-        match s.as_ref() {
-            "target" => ApiArgKind::Target,
-            _ => ApiArgKind::Other(s),
-        }
-    }
-}
+    Target => "target"
+});
 
 /// API request argument
+#[derive(Debug, PartialEq)]
 pub struct ApiArg {
     kind: ApiArgKind,
     val: String,
@@ -73,17 +108,29 @@ impl ApiArg {
 }
 
 impl FromStr for ApiArg {
-    type Error = ();
+    type Err = String;
 
-    fn from_str(s: &str) -> Result<Self, Self::Error> {
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         let eq_sign = s.find('=');
         if eq_sign.is_none() {
-            return Err(());
+            return Err("no equal sign".to_owned());
         }
+        let eq_sign = eq_sign.unwrap();
+        Ok(ApiArg {
+            kind: ApiArgKind::from_str(&s[0..eq_sign])?,
+            val: s[eq_sign + 1..].to_string(),
+        })
+    }
+}
+
+impl Display for ApiArg {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}={}", self.kind, self.val)
     }
 }
 
 /// API request
+#[derive(Debug, PartialEq)]
 pub struct ApiRequest {
     kind: ApiKind,
     args: Vec<ApiArg>,
@@ -91,7 +138,60 @@ pub struct ApiRequest {
 
 impl ApiRequest {
     /// Send api request
-    pub fn send<S: Read + Write>(self) -> io::Result<()> {}
+    pub fn send<S: Read + Write>(self, stream: &mut S) -> io::Result<()> {
+        let data = self.to_string();
+        send_data(stream, data)
+    }
+
+    /// Recv api request
+    pub fn recv<S: Read + Write>(stream: &mut S) -> Result<ApiRequest, String> {
+        let data = match recv_data(stream) {
+            Ok(d) => d,
+            Err(_) => return Err("cannot receive data".to_owned()),
+        };
+        ApiRequest::from_str(&data)
+    }
+}
+
+impl FromStr for ApiRequest {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<ApiRequest, Self::Err> {
+        if s.chars().next() != Some('[') {
+            return Err("missing bracket".to_owned());
+        }
+        let idx = match s.find(']') {
+            Some(idx) => idx,
+            None => return Err("missing bracket".to_owned()),
+        };
+        let kind = ApiKind::from_str(&s[1..idx]).map_err(|s| format!("unexpected value {}", s))?;
+        if s.len() < (idx + 2) {
+            return Err("missing arguments".to_owned());
+        }
+        let args = s[idx + 2..]
+            .split(',')
+            .filter_map(|s| ApiArg::from_str(s).ok())
+            .collect();
+        Ok(ApiRequest {
+            kind: kind,
+            args: args,
+        })
+    }
+}
+
+impl Display for ApiRequest {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "[{}] {}",
+            self.kind.to_string(),
+            self.args
+                .iter()
+                .map(|a| a.to_string())
+                .collect::<Vec<String>>()
+                .join(",")
+        )
+    }
 }
 
 /// Request builder
@@ -112,7 +212,7 @@ impl ApiRequestBuilder {
 
     /// Set kind
     pub fn kind(mut self, kind: ApiKind) -> ApiRequestBuilder {
-        self.req.kind = Some(kind);
+        self.req.kind = kind;
         self
     }
 
@@ -163,4 +263,19 @@ pub fn recv_data<S: Read + Write>(mut stream: &mut S) -> io::Result<String> {
     stream.write(b"OK")?;
     blather!("sent OK");
     Ok(buf)
+}
+
+#[cfg(test)]
+mod unit_test {
+    use super::*;
+
+    #[test]
+    fn test_api_request() {
+        let req = ApiRequestBuilder::new(ApiKind::Version)
+            .arg(ApiArgKind::Target, "appname".to_owned())
+            .build();
+        let req_str = req.to_string();
+        let parsed_req = ApiRequest::from_str(&req_str).unwrap();
+        assert_eq!(req, parsed_req);
+    }
 }
