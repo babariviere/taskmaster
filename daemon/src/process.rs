@@ -2,7 +2,7 @@
 
 use command::Command;
 use nix::fcntl;
-use nix::sys::wait;
+use nix::sys::{stat, wait};
 use nix::unistd::*;
 use std::os::unix::io::*;
 use std::sync::{Mutex, MutexGuard, RwLock, RwLockReadGuard};
@@ -275,16 +275,19 @@ impl Process {
         let (p_stderr, c_stderr) = pipe().unwrap();
         match fork() {
             Ok(ForkResult::Child) => {
-                //unsafe {
-                //    if let Some(umask) = self.config.umask {
-                //        libc::umask(umask);
-                //    }
-                //    if let Some(ref mut wd) = self.config.directory {
-                //        if libc::chdir(wd.to_str().unwrap().as_ptr() as *const i8) == -1 {
-                //            self.handle_fail();
-                //        }
-                //    }
-                //}
+                if let Some(mask) = self.config.umask {
+                    stat::umask(stat::Mode::from_bits_truncate(mask));
+                }
+                if let Some(ref mut wd) = self.config.directory {
+                    match chdir(wd) {
+                        Ok(_) => {}
+                        Err(e) => {
+                            trace!("error in process {}: {}", self.config.proc_name, e);
+                            self.handle_fail();
+                        }
+                    }
+                }
+
                 close(p_stdin).unwrap();
                 close(p_stdout).unwrap();
                 close(p_stderr).unwrap();
@@ -320,7 +323,6 @@ impl Process {
                 *state_lock = ProcessState::Running(child);
                 drop(state_lock);
                 info!("process {} spawned on pid {}", self.config.proc_name, child);
-                //::std::process::exit(0);
             }
             Err(e) => {
                 // TODO: respawn
