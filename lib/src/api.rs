@@ -1,6 +1,6 @@
 //! API for communicating between server and client
 
-use std::io::{self, BufRead, BufReader, Read, Write};
+use std::io::{self, Read, Write};
 use std::fmt::{self, Display};
 use std::str::FromStr;
 
@@ -152,7 +152,8 @@ impl ApiRequest {
             Ok(d) => d,
             Err(_) => return Err("cannot receive data".to_owned()),
         };
-        ApiRequest::from_str(&data)
+        ApiRequest::from_str(::std::str::from_utf8(data.as_slice())
+            .map_err(|_| format!("invalid str"))?)
     }
 
     /// Get api request kind
@@ -238,14 +239,23 @@ impl ApiRequestBuilder {
     }
 }
 
+fn send_size<S: Read + Write>(stream: &mut S, size: usize) -> io::Result<()> {
+    let mut buf = [0; 4];
+    buf[0] = ((size >> 24) & 0xff) as u8;
+    buf[1] = ((size >> 16) & 0xff) as u8;
+    buf[2] = ((size >> 8) & 0xff) as u8;
+    buf[3] = (size & 0xff) as u8;
+    stream.write(&buf)?;
+    Ok(())
+}
+
 /// Send chunk of data
 pub fn send_data<S: Read + Write, D: AsRef<[u8]>>(stream: &mut S, data: D) -> io::Result<()> {
+    blather!("preparing to send data");
     let data = data.as_ref();
+    blather!("chunk size: {}", data.len());
+    send_size(stream, data.len())?;
     stream.write_all(data)?;
-    if data[data.len() - 1] != b'\n' {
-        stream.write(b"\n")?;
-    }
-    stream.write(b"end\n")?;
     blather!("data are sent");
     let mut buf = [0; 2];
     stream.read(&mut buf)?;
@@ -254,21 +264,21 @@ pub fn send_data<S: Read + Write, D: AsRef<[u8]>>(stream: &mut S, data: D) -> io
     Ok(())
 }
 
+fn recv_size<S: Read + Write>(stream: &mut S) -> io::Result<usize> {
+    let mut buf = [0; 4];
+    stream.read(&mut buf)?;
+    let size = ((buf[0] as usize) << 24) | ((buf[1] as usize) << 16) | ((buf[2] as usize) << 8)
+        | buf[3] as usize;
+    Ok(size)
+}
+
 /// Receive chunk of data
-pub fn recv_data<S: Read + Write>(mut stream: &mut S) -> io::Result<String> {
-    let mut buf = String::new();
-    let mut line = String::new();
-    {
-        let mut stream = BufReader::new(&mut stream);
-        loop {
-            stream.read_line(&mut line)?;
-            if line == "end\n" {
-                break;
-            }
-            buf.push_str(&line);
-            line = String::new();
-        }
-    }
+pub fn recv_data<S: Read + Write>(stream: &mut S) -> io::Result<Vec<u8>> {
+    blather!("preparing to receive data");
+    let size = recv_size(stream)?;
+    blather!("chunk size: {}", size);
+    let mut buf = vec![0; size];
+    stream.read_exact(buf.as_mut_slice())?;
     blather!("data readed");
     stream.write(b"OK")?;
     blather!("sent OK");

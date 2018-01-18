@@ -1,7 +1,6 @@
 #[macro_use]
 extern crate taskmaster;
 
-use std::env;
 use std::io::{stdin, stdout, BufRead, BufReader, Read, Write};
 use std::net::TcpStream;
 use taskmaster::api::{self, ApiKind, ApiRequestBuilder};
@@ -24,10 +23,13 @@ fn main() {
     let mut stream = TcpStream::connect(("127.0.0.1", taskmaster::DEFAULT_PORT))
         .expect("unable to connect to server");
     info!("connected to {}", stream.peer_addr().unwrap());
-    let prompt = config
-        .ctl()
-        .map(|c| c.prompt.to_owned())
-        .unwrap_or("taskmaster> ".to_owned());
+    let prompt = format!(
+        "{}> ",
+        config
+            .ctl()
+            .map(|c| c.prompt.to_owned())
+            .unwrap_or("taskmaster".to_owned())
+    );
     let mut reader = BufReader::new(stdin());
     loop {
         print!("{}", prompt);
@@ -37,26 +39,39 @@ fn main() {
         if buf.len() == 0 {
             break;
         }
+        if buf.chars().next() == Some('\n') {
+            continue;
+        }
         match buf.trim() {
             "shutdown" => {
                 ApiRequestBuilder::new(ApiKind::Shutdown)
                     .build()
-                    .send(&mut stream);
+                    .send(&mut stream)
+                    .unwrap();
             }
             "status" => {
                 ApiRequestBuilder::new(ApiKind::Status)
                     .build()
-                    .send(&mut stream);
-                let data = api::recv_data(&mut stream).unwrap();
+                    .send(&mut stream)
+                    .unwrap();
+                let data = String::from_utf8(api::recv_data(&mut stream).unwrap()).unwrap();
                 println!("{}", data.trim());
             }
             "log" => {
                 ApiRequestBuilder::new(ApiKind::Log)
                     .build()
-                    .send(&mut stream);
-                let data = api::recv_data(&mut stream).unwrap();
+                    .send(&mut stream)
+                    .unwrap();
+                let data = String::from_utf8(api::recv_data(&mut stream).unwrap()).unwrap();
                 println!("{}", data.trim());
             }
+            "kill" => {
+                ApiRequestBuilder::new(ApiKind::Kill)
+                    .build()
+                    .send(&mut stream)
+                    .unwrap();
+            }
+            "exit" => break,
             //s => api::send_data(&mut stream, s).unwrap(),
             _ => {
                 error!("c'est pas valide ca monsieur");
