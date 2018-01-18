@@ -5,7 +5,7 @@ use nix::fcntl;
 use nix::sys::wait;
 use nix::unistd::*;
 use std::os::unix::io::*;
-use std::sync::{RwLock, RwLockReadGuard};
+use std::sync::{Mutex, MutexGuard, RwLock, RwLockReadGuard};
 use taskmaster::config::*;
 
 /// Get process state
@@ -57,22 +57,32 @@ impl ProcessHolder {
 
     /// Set stdout
     pub fn stdout(mut self, stdout: RawFd) -> ProcessHolder {
-        let flags = fcntl::fcntl(stdout, fcntl::FcntlArg::F_GETFL).unwrap();
-        fcntl::fcntl(
-            stdout,
-            fcntl::FcntlArg::F_SETFL(fcntl::OFlag::from_bits_truncate(flags) | fcntl::O_NONBLOCK),
-        ).unwrap();
+        match fcntl::fcntl(stdout, fcntl::FcntlArg::F_GETFL) {
+            Ok(f) => match fcntl::fcntl(
+                stdout,
+                fcntl::FcntlArg::F_SETFL(fcntl::OFlag::from_bits_truncate(f) | fcntl::O_NONBLOCK),
+            ) {
+                Ok(_) => {}
+                Err(e) => trace!("error with fcntl: {}", e),
+            },
+            Err(_) => {}
+        };
         self.stdout = Some(stdout);
         self
     }
 
     /// Set stderr
     pub fn stderr(mut self, stderr: RawFd) -> ProcessHolder {
-        let flags = fcntl::fcntl(stderr, fcntl::FcntlArg::F_GETFL).unwrap();
-        fcntl::fcntl(
-            stderr,
-            fcntl::FcntlArg::F_SETFL(fcntl::OFlag::from_bits_truncate(flags) | fcntl::O_NONBLOCK),
-        ).unwrap();
+        match fcntl::fcntl(stderr, fcntl::FcntlArg::F_GETFL) {
+            Ok(f) => match fcntl::fcntl(
+                stderr,
+                fcntl::FcntlArg::F_SETFL(fcntl::OFlag::from_bits_truncate(f) | fcntl::O_NONBLOCK),
+            ) {
+                Ok(_) => {}
+                Err(e) => trace!("error with fcntl: {}", e),
+            },
+            Err(_) => {}
+        };
         self.stderr = Some(stderr);
         self
     }
@@ -98,9 +108,11 @@ impl ProcessHolder {
 
     /// Read to stdout
     pub fn read_stdout(&mut self) {
+        blather!("started reading stdout");
         if let Some(fd) = self.stdout {
             let mut buf = [0; 1024];
             while let Ok(size) = read(fd, &mut buf) {
+                blather!("stdout read: {}", size);
                 if size == 0 {
                     break;
                 }
@@ -108,13 +120,16 @@ impl ProcessHolder {
                 buf = [0; 1024];
             }
         }
+        blather!("ended reading stdout");
     }
 
     /// Read to stderr
     pub fn read_stderr(&mut self) {
+        blather!("started reading stderr");
         if let Some(fd) = self.stderr {
             let mut buf = [0; 1024];
             while let Ok(size) = read(fd, &mut buf) {
+                blather!("stderr read: {}", size);
                 if size == 0 {
                     break;
                 }
@@ -122,6 +137,7 @@ impl ProcessHolder {
                 buf = [0; 1024];
             }
         }
+        blather!("ended reading stderr");
     }
 }
 
@@ -140,12 +156,13 @@ impl Drop for ProcessHolder {
 }
 
 /// Process handler
+#[derive(Debug)]
 pub struct Process {
     command: Command,
     state: RwLock<ProcessState>,
     config: ProcessConfig,
     count_fail: u8,
-    holder: ProcessHolder,
+    holder: Mutex<ProcessHolder>,
 }
 
 impl Process {
@@ -156,7 +173,7 @@ impl Process {
             state: RwLock::new(ProcessState::Stopped),
             config: config,
             count_fail: 0,
-            holder: ProcessHolder::new(),
+            holder: Mutex::new(ProcessHolder::new()),
         }
     }
 
@@ -237,8 +254,8 @@ impl Process {
         }
     }
 
-    pub fn holder(&mut self) -> &mut ProcessHolder {
-        &mut self.holder
+    pub fn holder(&self) -> MutexGuard<ProcessHolder> {
+        self.holder.lock().unwrap()
     }
 
     pub fn get_state(&self) -> RwLockReadGuard<ProcessState> {
@@ -258,7 +275,6 @@ impl Process {
         let (p_stderr, c_stderr) = pipe().unwrap();
         match fork() {
             Ok(ForkResult::Child) => {
-                //self.setup_io();
                 //unsafe {
                 //    if let Some(umask) = self.config.umask {
                 //        libc::umask(umask);
@@ -269,9 +285,6 @@ impl Process {
                 //        }
                 //    }
                 //}
-                //open("/dev/stdin", O_RDONLY, stat::Mode::empty()).unwrap();
-                //open("/dev/stdout", O_WRONLY, stat::Mode::empty()).unwrap();
-                //open("/dev/stderr", O_WRONLY, stat::Mode::empty()).unwrap();
                 close(p_stdin).unwrap();
                 close(p_stdout).unwrap();
                 close(p_stderr).unwrap();
@@ -294,10 +307,12 @@ impl Process {
                 ::std::process::exit(1);
             }
             Ok(ForkResult::Parent { child }) => {
-                self.holder = ProcessHolder::new()
+                let mut holder_lock = self.holder.lock().unwrap();
+                *holder_lock = ProcessHolder::new()
                     .stdin(p_stdin)
                     .stdout(p_stdout)
                     .stderr(p_stderr);
+                drop(holder_lock);
                 close(c_stdin).unwrap();
                 close(c_stdout).unwrap();
                 close(c_stderr).unwrap();

@@ -3,3 +3,5 @@
 **/target/rls
 **/*.rs.bk
 Cargo.lock
+/daemon/log
+/sample.ini
