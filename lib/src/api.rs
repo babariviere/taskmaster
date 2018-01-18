@@ -4,6 +4,9 @@ use std::io::{self, BufRead, BufReader, Read, Write};
 use std::fmt::{self, Display};
 use std::str::FromStr;
 
+// TODO: send chunk and receive chunk
+//       server and client must know sended data size
+
 macro_rules! impl_enum_str {
     (
         $(#[$attr:meta])*
@@ -275,6 +278,14 @@ pub fn recv_data<S: Read + Write>(mut stream: &mut S) -> io::Result<String> {
 #[cfg(test)]
 mod unit_test {
     use super::*;
+
+    #[test]
+    fn test_api_request_no_arg() {
+        let req = ApiRequestBuilder::new(ApiKind::Version).build();
+        let req_str = req.to_string();
+        let parsed_req = ApiRequest::from_str(&req_str).unwrap();
+        assert_eq!(req, parsed_req);
+    }
 
     #[test]
     fn test_api_request() {

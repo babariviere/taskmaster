@@ -42,6 +42,17 @@ pub fn handle_client(mut stream: TcpStream, processes: Arc<Vec<ProcessSync>>) {
                     process.read().unwrap().kill();
                 }
             }
+            &ApiKind::Log => {
+                // TODO: get stdout
+                let mut data = Vec::new();
+                for process in processes.iter() {
+                    let mut process = process.write().unwrap();
+                    process.holder().read_stdout();
+                    let readed = process.holder().get_stdout();
+                    data.extend(readed.iter());
+                }
+                send_data(&mut stream, data);
+            }
             a => {
                 warn!("unimplemented request `{}` from {}", a, addr);
                 send_data(&mut stream, b"unimplemented").unwrap();

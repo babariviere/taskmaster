@@ -1,6 +1,7 @@
 //! Process module
 
 use command::Command;
+use nix::fcntl;
 use nix::sys::wait;
 use nix::unistd::*;
 use std::os::unix::io::*;
@@ -13,7 +14,7 @@ pub enum ProcessState {
     /// Starting process
     Starting,
     /// In running state, param is pid
-    Running(ProcessHolder),
+    Running(Pid),
     /// Fail start
     Backoff,
     /// Stopping process
@@ -26,24 +27,25 @@ pub enum ProcessState {
     Fatal,
 }
 
-// TODO: process holder with pid, stdin, stdout, stderr
 // TODO: use signal to handle process
 #[derive(Clone, Debug, PartialEq)]
 pub struct ProcessHolder {
-    pid: Pid,
     stdin: Option<RawFd>,
     stdout: Option<RawFd>,
     stderr: Option<RawFd>,
+    stdout_readed: Vec<u8>,
+    stderr_readed: Vec<u8>,
 }
 
 impl ProcessHolder {
     /// create a new process holder
-    pub fn new(pid: Pid) -> ProcessHolder {
+    pub fn new() -> ProcessHolder {
         ProcessHolder {
-            pid: pid,
             stdin: None,
             stdout: None,
             stderr: None,
+            stdout_readed: Vec::new(),
+            stderr_readed: Vec::new(),
         }
     }
 
@@ -55,28 +57,85 @@ impl ProcessHolder {
 
     /// Set stdout
     pub fn stdout(mut self, stdout: RawFd) -> ProcessHolder {
+        let flags = fcntl::fcntl(stdout, fcntl::FcntlArg::F_GETFL).unwrap();
+        fcntl::fcntl(
+            stdout,
+            fcntl::FcntlArg::F_SETFL(fcntl::OFlag::from_bits_truncate(flags) | fcntl::O_NONBLOCK),
+        ).unwrap();
         self.stdout = Some(stdout);
         self
     }
 
     /// Set stderr
     pub fn stderr(mut self, stderr: RawFd) -> ProcessHolder {
+        let flags = fcntl::fcntl(stderr, fcntl::FcntlArg::F_GETFL).unwrap();
+        fcntl::fcntl(
+            stderr,
+            fcntl::FcntlArg::F_SETFL(fcntl::OFlag::from_bits_truncate(flags) | fcntl::O_NONBLOCK),
+        ).unwrap();
         self.stderr = Some(stderr);
         self
     }
 
-    /// Get stdin
-    pub fn get_stdin(&self) -> Option<RawFd> {
-        self.stdin
-    }
-
     /// Get stdout
-    pub fn get_stdout(&self) -> Option<RawFd> {
-        self.stdout
+    pub fn get_stdout(&self) -> &Vec<u8> {
+        &self.stdout_readed
     }
 
-    pub fn get_stderr(&self) -> Option<RawFd> {
-        self.stderr
+    /// Get stderr
+    pub fn get_stderr(&self) -> &Vec<u8> {
+        &self.stderr_readed
+    }
+
+    /// Write to stdin
+    pub fn write_stdin(&self, buf: &[u8]) -> ::nix::Result<usize> {
+        if let Some(fd) = self.stdin {
+            write(fd, buf)
+        } else {
+            Ok(0)
+        }
+    }
+
+    /// Read to stdout
+    pub fn read_stdout(&mut self) {
+        if let Some(fd) = self.stdout {
+            let mut buf = [0; 1024];
+            while let Ok(size) = read(fd, &mut buf) {
+                if size == 0 {
+                    break;
+                }
+                self.stdout_readed.extend(buf.iter());
+                buf = [0; 1024];
+            }
+        }
+    }
+
+    /// Read to stderr
+    pub fn read_stderr(&mut self) {
+        if let Some(fd) = self.stderr {
+            let mut buf = [0; 1024];
+            while let Ok(size) = read(fd, &mut buf) {
+                if size == 0 {
+                    break;
+                }
+                self.stderr_readed.extend(buf.iter());
+                buf = [0; 1024];
+            }
+        }
+    }
+}
+
+impl Drop for ProcessHolder {
+    fn drop(&mut self) {
+        if let Some(fd) = self.stdin {
+            let _ = close(fd);
+        }
+        if let Some(fd) = self.stdout {
+            let _ = close(fd);
+        }
+        if let Some(fd) = self.stderr {
+            let _ = close(fd);
+        }
     }
 }
 
@@ -86,6 +145,7 @@ pub struct Process {
     state: RwLock<ProcessState>,
     config: ProcessConfig,
     count_fail: u8,
+    holder: ProcessHolder,
 }
 
 impl Process {
@@ -96,6 +156,7 @@ impl Process {
             state: RwLock::new(ProcessState::Stopped),
             config: config,
             count_fail: 0,
+            holder: ProcessHolder::new(),
         }
     }
 
@@ -117,61 +178,67 @@ impl Process {
 
     pub fn kill(&self) {
         let state = self.state.read().unwrap().clone();
-        match state {
-            ProcessState::Running(ProcessHolder { pid, .. }) => {
-                {
-                    let mut state_lock = self.state.write().unwrap();
-                    *state_lock = ProcessState::Stopping;
-                }
-                match self.config.stop_signal.kill(pid) {
-                    Ok(_) => {}
-                    Err(e) => {
-                        error!("killing pid {} failed", pid);
-                        trace!("error: {}", e);
-                    }
-                }
+        let pid = match state {
+            ProcessState::Running(pid) => pid,
+            _ => return,
+        };
+        drop(state);
+        let mut state_lock = self.state.write().unwrap();
+        *state_lock = ProcessState::Stopping;
+        drop(state_lock);
+        match self.config.stop_signal.kill(pid) {
+            Ok(_) => {}
+            Err(e) => {
+                error!("killing pid {} failed", pid);
+                trace!("error: {}", e);
             }
-            _ => {}
         }
     }
 
     pub fn track_state(&self) {
         let state = self.state.read().unwrap().clone();
-        match state {
-            ProcessState::Running(ProcessHolder { pid, .. }) => {
-                trace!("tracking state");
-                loop {
-                    match wait::waitpid(pid, None) {
-                        Ok(wait::WaitStatus::Exited(_, status)) => {
-                            info!(
-                                "process {} exited with code {}",
-                                self.config.proc_name, status
-                            );
-                            let mut state_lock = self.state.write().unwrap();
-                            *state_lock = ProcessState::Exited(status);
-                            break;
-                        }
-                        Ok(wait::WaitStatus::Signaled(_, _, _)) => {
-                            let mut state_lock = self.state.write().unwrap();
-                            if *state_lock == ProcessState::Stopping {
-                                *state_lock = ProcessState::Stopped;
-                            }
-                        }
-                        Ok(s) => {
-                            blather!("pid {} received status {:#?}", pid, s);
-                        }
-                        Err(e) => {
-                            warn!("unexpected error for pid {}", pid);
-                            trace!("error: {}", e);
-                            let mut state_lock = self.state.write().unwrap();
-                            *state_lock = ProcessState::Stopped;
-                            break;
-                        }
+        let pid = match state {
+            ProcessState::Running(pid) => pid,
+            _ => return,
+        };
+        drop(state);
+        trace!("tracking state");
+        loop {
+            match wait::waitpid(pid, None) {
+                Ok(wait::WaitStatus::Exited(_, status)) => {
+                    info!(
+                        "process {} exited with code {}",
+                        self.config.proc_name, status
+                    );
+                    let mut state_lock = self.state.write().unwrap();
+                    *state_lock = ProcessState::Exited(status);
+                    drop(state_lock);
+                    break;
+                }
+                Ok(wait::WaitStatus::Signaled(_, _, _)) => {
+                    let mut state_lock = self.state.write().unwrap();
+                    if *state_lock == ProcessState::Stopping {
+                        *state_lock = ProcessState::Stopped;
                     }
+                    drop(state_lock);
+                }
+                Ok(s) => {
+                    blather!("pid {} received status {:#?}", pid, s);
+                }
+                Err(e) => {
+                    warn!("unexpected error for pid {}", pid);
+                    trace!("error: {}", e);
+                    let mut state_lock = self.state.write().unwrap();
+                    *state_lock = ProcessState::Stopped;
+                    drop(state_lock);
+                    break;
                 }
             }
-            _ => {}
         }
+    }
+
+    pub fn holder(&mut self) -> &mut ProcessHolder {
+        &mut self.holder
     }
 
     pub fn get_state(&self) -> RwLockReadGuard<ProcessState> {
@@ -179,14 +246,13 @@ impl Process {
     }
 
     pub fn spawn(&mut self) {
-        {
-            let mut state_lock = self.state.write().unwrap();
-            if *state_lock == ProcessState::Fatal {
-                return;
-            }
-            trace!("spawning process {}", self.config.proc_name);
-            *state_lock = ProcessState::Starting;
+        let mut state_lock = self.state.write().unwrap();
+        if *state_lock == ProcessState::Fatal {
+            return;
         }
+        trace!("spawning process {}", self.config.proc_name);
+        *state_lock = ProcessState::Starting;
+        drop(state_lock);
         let (c_stdin, p_stdin) = pipe().unwrap();
         let (p_stdout, c_stdout) = pipe().unwrap();
         let (p_stderr, c_stderr) = pipe().unwrap();
@@ -212,6 +278,9 @@ impl Process {
                 dup2(c_stdin, 0).unwrap();
                 dup2(c_stdout, 1).unwrap();
                 dup2(c_stderr, 2).unwrap();
+                close(c_stdin).unwrap();
+                close(c_stdout).unwrap();
+                close(c_stderr).unwrap();
                 trace!("executing command for process {}", self.config.proc_name);
                 match self.command.exec() {
                     Ok(_) => {
@@ -225,7 +294,7 @@ impl Process {
                 ::std::process::exit(1);
             }
             Ok(ForkResult::Parent { child }) => {
-                let holder = ProcessHolder::new(child)
+                self.holder = ProcessHolder::new()
                     .stdin(p_stdin)
                     .stdout(p_stdout)
                     .stderr(p_stderr);
@@ -233,7 +302,8 @@ impl Process {
                 close(c_stdout).unwrap();
                 close(c_stderr).unwrap();
                 let mut state_lock = self.state.write().unwrap();
-                *state_lock = ProcessState::Running(holder);
+                *state_lock = ProcessState::Running(child);
+                drop(state_lock);
                 info!("process {} spawned on pid {}", self.config.proc_name, child);
                 //::std::process::exit(0);
             }

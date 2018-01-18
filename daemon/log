@@ -1,20 +1,11 @@
 [blather] daemon/src/main.rs::86 spawning processes
-[trace] daemon/src/process.rs::187 spawning process theprogramname
-[info] process theprogramname spawned on pid 47479
-[trace] daemon/src/process.rs::142 tracking state
 [info] starting listener
 [info] listening
 [debug] daemon/src/main.rs::103 listener has start on port 9450
-[info] connected with 127.0.0.1:51407
-[blather] lib/src/api.rs::269 data readed
-[blather] lib/src/api.rs::271 sent OK
-[trace] daemon/src/client.rs::22 request: [status]
-[info] status request from 127.0.0.1:51407
-[blather] lib/src/api.rs::246 data are sent
-[blather] lib/src/api.rs::250 received OK
-[blather] lib/src/api.rs::269 data readed
-[blather] lib/src/api.rs::271 sent OK
-[trace] daemon/src/client.rs::22 request: [status]
-[info] status request from 127.0.0.1:51407
-[blather] lib/src/api.rs::246 data are sent
-[blather] lib/src/api.rs::250 received OK
+[trace] daemon/src/process.rs::253 spawning process theprogramname
+[info] process theprogramname spawned on pid 51145
+[trace] daemon/src/process.rs::205 tracking state
+[info] connected with 127.0.0.1:62048
+[blather] lib/src/api.rs::272 data readed
+[blather] lib/src/api.rs::274 sent OK
+[trace] daemon/src/client.rs::22 request: [log]

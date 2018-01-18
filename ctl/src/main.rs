@@ -47,7 +47,13 @@ fn main() {
                 ApiRequestBuilder::new(ApiKind::Status)
                     .build()
                     .send(&mut stream);
-                //api::send_data(&mut stream, b"status").unwrap();
+                let data = api::recv_data(&mut stream).unwrap();
+                println!("{}", data.trim());
+            }
+            "log" => {
+                ApiRequestBuilder::new(ApiKind::Log)
+                    .build()
+                    .send(&mut stream);
                 let data = api::recv_data(&mut stream).unwrap();
                 println!("{}", data.trim());
             }
