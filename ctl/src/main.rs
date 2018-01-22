@@ -1,17 +1,20 @@
 extern crate nix;
+extern crate signal_notify as sig;
 #[macro_use]
 extern crate taskmaster;
 
 use nix::fcntl;
-use std::io::{stdin, stdout, BufRead, Read, Write};
+use sig::Signal;
+use std::io::{self, stdin, stdout, BufRead, Read, Write};
 use std::net::TcpStream;
+use std::sync::mpsc;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use taskmaster::api::{self, ApiArgKind, ApiKind, ApiRequestBuilder};
 use taskmaster::config::*;
 use taskmaster::log::*;
 
-fn handle_fg(stream: &mut TcpStream) {
+fn handle_fg(stream: &mut TcpStream, sign_recv: &mpsc::Receiver<Signal>) {
     let stdin_port = String::from_utf8(api::recv_data(stream).unwrap())
         .unwrap()
         .parse()
@@ -35,42 +38,57 @@ fn handle_fg(stream: &mut TcpStream) {
         }
     };
     stdout_stream.set_nonblocking(true).unwrap();
+    thread::spawn(move || loop {
+        let mut buf = [0; 512];
+        match stdout_stream.read(&mut buf) {
+            Ok(sz) => {
+                print!("{}", ::std::str::from_utf8(&buf[0..sz]).unwrap());
+            }
+            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {}
+            Err(e) => {
+                error!("{:#?}", e);
+                return;
+            }
+        }
+        thread::sleep(Duration::from_millis(10));
+    });
     loop {
         let mut buf = [0; 512];
         match stdin().read(&mut buf) {
             Ok(_) => {
                 api::send_data(&mut stdin_stream, &buf).unwrap();
             }
-            Err(ref e) if e.kind() == ::std::io::ErrorKind::WouldBlock => {}
+            Err(ref e) if e.kind() == io::ErrorKind::Interrupted => break,
             Err(e) => {
                 error!("{:?}", e);
                 break;
             }
         }
-        //blather!("data: {:#?}", buf);
-        match stdout_stream.read(&mut buf) {
-            Ok(_) => {
-                print!("{}", ::std::str::from_utf8(&buf).unwrap());
-            }
-            Err(ref e) if e.kind() == ::std::io::ErrorKind::WouldBlock => {}
-            Err(e) => {
-                error!("{:#?}", e);
+        if let Ok(sig) = sign_recv.try_recv() {
+            print!("\r");
+            if sig == Signal::INT {
                 break;
             }
         }
-        thread::sleep(Duration::from_millis(10));
     }
 }
 
 fn main() {
     init_logger(|logger| {
         logger.add_output(Output::stdout(
-            LevelFilter::Blather,
+            LevelFilter::Info,
             Some(Box::new(|log| {
-                format!("[{}] {}", log.level(), log.message())
+                format!(
+                    "{}:{} [{}] {}",
+                    log.file(),
+                    log.line(),
+                    log.level(),
+                    log.message()
+                )
             })),
         ));
     });
+    let sign_recv = sig::notify(&[Signal::INT]);
     let mut f = ::std::fs::File::open("/Users/briviere/projects/taskmaster/sample.ini").unwrap();
     let mut buf = String::new();
     f.read_to_string(&mut buf).unwrap();
@@ -86,6 +104,9 @@ fn main() {
             .unwrap_or("taskmaster".to_owned())
     );
     loop {
+        if let Ok(_sig) = sign_recv.try_recv() {
+            print!("\x21[2K\r");
+        }
         print!("{}", prompt);
         stdout().flush().unwrap();
         let mut buf = String::new();
@@ -130,34 +151,34 @@ fn main() {
                     .unwrap();
             }
             "fg" => {
-                match fcntl::fcntl(0, fcntl::FcntlArg::F_GETFL) {
-                    Ok(f) => {
-                        let _ = fcntl::fcntl(
-                            0,
-                            fcntl::FcntlArg::F_SETFL(
-                                fcntl::OFlag::from_bits_truncate(f) | fcntl::O_NONBLOCK,
-                            ),
-                        ).unwrap();
-                    }
-                    _ => {}
-                }
+                //match fcntl::fcntl(0, fcntl::FcntlArg::F_GETFL) {
+                //    Ok(f) => {
+                //        let _ = fcntl::fcntl(
+                //            0,
+                //            fcntl::FcntlArg::F_SETFL(
+                //                fcntl::OFlag::from_bits_truncate(f) | fcntl::O_NONBLOCK,
+                //            ),
+                //        ).unwrap();
+                //    }
+                //    _ => {}
+                //}
                 ApiRequestBuilder::new(ApiKind::Foreground)
                     .arg(ApiArgKind::Target, "theprogramname".to_owned())
                     .build()
                     .send(&mut stream)
                     .unwrap();
-                handle_fg(&mut stream);
-                match fcntl::fcntl(0, fcntl::FcntlArg::F_GETFL) {
-                    Ok(f) => {
-                        let _ = fcntl::fcntl(
-                            0,
-                            fcntl::FcntlArg::F_SETFL(
-                                fcntl::OFlag::from_bits_truncate(f) & !fcntl::O_NONBLOCK,
-                            ),
-                        ).unwrap();
-                    }
-                    _ => {}
-                }
+                handle_fg(&mut stream, &sign_recv);
+                //match fcntl::fcntl(0, fcntl::FcntlArg::F_GETFL) {
+                //    Ok(f) => {
+                //        let _ = fcntl::fcntl(
+                //            0,
+                //            fcntl::FcntlArg::F_SETFL(
+                //                fcntl::OFlag::from_bits_truncate(f) & !fcntl::O_NONBLOCK,
+                //            ),
+                //        ).unwrap();
+                //    }
+                //    _ => {}
+                //}
             }
             "exit" => break,
             //s => api::send_data(&mut stream, s).unwrap(),

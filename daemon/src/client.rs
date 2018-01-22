@@ -35,7 +35,7 @@ pub fn handle_fg<'a>(stream: &mut TcpStream, process: RwLockReadGuard<'a, Proces
         }
         let readed = process.holder().read_stdout();
         if readed.len() > 0 {
-            match send_data(&mut stream_out, &readed) {
+            match send_data(&mut stream_out, &readed[0..readed.len()]) {
                 Ok(_) => {}
                 Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {}
                 Err(e) => {

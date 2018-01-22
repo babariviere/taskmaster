@@ -253,16 +253,15 @@ fn send_size<S: Read + Write>(stream: &mut S, size: usize) -> io::Result<()> {
 
 /// Send chunk of data
 pub fn send_data<S: Read + Write>(stream: &mut S, data: &[u8]) -> io::Result<()> {
-    blather!("preparing to send data");
     let data = data.as_ref();
-    blather!("chunk size: {}", data.len());
+    blather!("send => chunk size: {}", data.len());
     send_size(stream, data.len())?;
     stream.write_all(data)?;
-    blather!("data are sent");
+    blather!("send => data sent");
     let mut buf = [0; 2];
     stream.read(&mut buf)?;
     assert_eq!(&buf, b"OK");
-    blather!("received OK");
+    blather!("recv => OK");
     Ok(())
 }
 
@@ -277,12 +276,12 @@ fn recv_size<S: Read + Write>(stream: &mut S) -> io::Result<usize> {
 /// Receive chunk of data
 pub fn recv_data<S: Read + Write>(stream: &mut S) -> io::Result<Vec<u8>> {
     let size = recv_size(stream)?;
-    blather!("chunk size: {}", size);
+    blather!("recv => chunk size: {}", size);
     let mut buf = vec![0; size];
     stream.read_exact(buf.as_mut_slice())?;
-    blather!("data readed");
+    blather!("recv => data readed");
     stream.write(b"OK")?;
-    blather!("sent OK");
+    blather!("send => OK");
     Ok(buf)
 }
 

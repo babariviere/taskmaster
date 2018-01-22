@@ -5,4 +5,5 @@ authors = ["babariviere <babariviere@protonmail.com>"]
 
 [dependencies]
 nix = "0.9"
+signal-notify = "*"
 taskmaster = {path = "../lib"}
