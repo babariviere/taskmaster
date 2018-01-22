@@ -65,6 +65,8 @@ pub enum ApiKind {
     Status => "status",
     /// Request process kill
     Kill => "kill",
+    /// Request process to take control
+    Foreground => "foreground",
     /// Request process spawning
     Start => "start",
     /// Request process restart
@@ -143,7 +145,7 @@ impl ApiRequest {
     /// Send api request
     pub fn send<S: Read + Write>(self, stream: &mut S) -> io::Result<()> {
         let data = self.to_string();
-        send_data(stream, data)
+        send_data(stream, data.as_bytes())
     }
 
     /// Recv api request
@@ -250,7 +252,7 @@ fn send_size<S: Read + Write>(stream: &mut S, size: usize) -> io::Result<()> {
 }
 
 /// Send chunk of data
-pub fn send_data<S: Read + Write, D: AsRef<[u8]>>(stream: &mut S, data: D) -> io::Result<()> {
+pub fn send_data<S: Read + Write>(stream: &mut S, data: &[u8]) -> io::Result<()> {
     blather!("preparing to send data");
     let data = data.as_ref();
     blather!("chunk size: {}", data.len());
@@ -274,7 +276,6 @@ fn recv_size<S: Read + Write>(stream: &mut S) -> io::Result<usize> {
 
 /// Receive chunk of data
 pub fn recv_data<S: Read + Write>(stream: &mut S) -> io::Result<Vec<u8>> {
-    blather!("preparing to receive data");
     let size = recv_size(stream)?;
     blather!("chunk size: {}", size);
     let mut buf = vec![0; size];

@@ -107,24 +107,26 @@ impl ProcessHolder {
     }
 
     /// Read to stdout
-    pub fn read_stdout(&mut self) {
-        blather!("started reading stdout");
+    pub fn read_stdout(&mut self) -> Vec<u8> {
+        let mut readed = Vec::new();
         if let Some(fd) = self.stdout {
             let mut buf = [0; 1024];
             while let Ok(size) = read(fd, &mut buf) {
-                blather!("stdout read: {}", size);
                 if size == 0 {
                     break;
                 }
+                blather!("stdout read: {}", size);
                 self.stdout_readed.extend(buf.iter());
+                readed.extend(buf.iter());
                 buf = [0; 1024];
             }
         }
-        blather!("ended reading stdout");
+        readed
     }
 
     /// Read to stderr
-    pub fn read_stderr(&mut self) {
+    pub fn read_stderr(&mut self) -> Vec<u8> {
+        let mut readed = Vec::new();
         blather!("started reading stderr");
         if let Some(fd) = self.stderr {
             let mut buf = [0; 1024];
@@ -134,10 +136,12 @@ impl ProcessHolder {
                     break;
                 }
                 self.stderr_readed.extend(buf.iter());
+                readed.extend(buf.iter());
                 buf = [0; 1024];
             }
         }
         blather!("ended reading stderr");
+        readed
     }
 }
 

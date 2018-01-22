@@ -1,11 +1,66 @@
+extern crate nix;
 #[macro_use]
 extern crate taskmaster;
 
-use std::io::{stdin, stdout, BufRead, BufReader, Read, Write};
+use nix::fcntl;
+use std::io::{stdin, stdout, BufRead, Read, Write};
 use std::net::TcpStream;
-use taskmaster::api::{self, ApiKind, ApiRequestBuilder};
+use std::thread;
+use std::time::Duration;
+use taskmaster::api::{self, ApiArgKind, ApiKind, ApiRequestBuilder};
 use taskmaster::config::*;
 use taskmaster::log::*;
+
+fn handle_fg(stream: &mut TcpStream) {
+    let stdin_port = String::from_utf8(api::recv_data(stream).unwrap())
+        .unwrap()
+        .parse()
+        .unwrap();
+    let mut stdin_stream = match TcpStream::connect(("127.0.0.1", stdin_port)) {
+        Ok(s) => s,
+        Err(e) => {
+            warn!("{}", e);
+            return;
+        }
+    };
+    let stdout_port = String::from_utf8(api::recv_data(stream).unwrap())
+        .unwrap()
+        .parse()
+        .unwrap();
+    let mut stdout_stream = match TcpStream::connect(("127.0.0.1", stdout_port)) {
+        Ok(s) => s,
+        Err(e) => {
+            warn!("{}", e);
+            return;
+        }
+    };
+    stdout_stream.set_nonblocking(true).unwrap();
+    loop {
+        let mut buf = [0; 512];
+        match stdin().read(&mut buf) {
+            Ok(_) => {
+                api::send_data(&mut stdin_stream, &buf).unwrap();
+            }
+            Err(ref e) if e.kind() == ::std::io::ErrorKind::WouldBlock => {}
+            Err(e) => {
+                error!("{:?}", e);
+                break;
+            }
+        }
+        //blather!("data: {:#?}", buf);
+        match stdout_stream.read(&mut buf) {
+            Ok(_) => {
+                print!("{}", ::std::str::from_utf8(&buf).unwrap());
+            }
+            Err(ref e) if e.kind() == ::std::io::ErrorKind::WouldBlock => {}
+            Err(e) => {
+                error!("{:#?}", e);
+                break;
+            }
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
+}
 
 fn main() {
     init_logger(|logger| {
@@ -30,12 +85,15 @@ fn main() {
             .map(|c| c.prompt.to_owned())
             .unwrap_or("taskmaster".to_owned())
     );
-    let mut reader = BufReader::new(stdin());
     loop {
         print!("{}", prompt);
         stdout().flush().unwrap();
         let mut buf = String::new();
-        reader.read_line(&mut buf).unwrap();
+        {
+            let stdin = stdin();
+            let mut lock = stdin.lock();
+            lock.read_line(&mut buf).unwrap();
+        }
         if buf.len() == 0 {
             break;
         }
@@ -70,6 +128,36 @@ fn main() {
                     .build()
                     .send(&mut stream)
                     .unwrap();
+            }
+            "fg" => {
+                match fcntl::fcntl(0, fcntl::FcntlArg::F_GETFL) {
+                    Ok(f) => {
+                        let _ = fcntl::fcntl(
+                            0,
+                            fcntl::FcntlArg::F_SETFL(
+                                fcntl::OFlag::from_bits_truncate(f) | fcntl::O_NONBLOCK,
+                            ),
+                        ).unwrap();
+                    }
+                    _ => {}
+                }
+                ApiRequestBuilder::new(ApiKind::Foreground)
+                    .arg(ApiArgKind::Target, "theprogramname".to_owned())
+                    .build()
+                    .send(&mut stream)
+                    .unwrap();
+                handle_fg(&mut stream);
+                match fcntl::fcntl(0, fcntl::FcntlArg::F_GETFL) {
+                    Ok(f) => {
+                        let _ = fcntl::fcntl(
+                            0,
+                            fcntl::FcntlArg::F_SETFL(
+                                fcntl::OFlag::from_bits_truncate(f) & !fcntl::O_NONBLOCK,
+                            ),
+                        ).unwrap();
+                    }
+                    _ => {}
+                }
             }
             "exit" => break,
             //s => api::send_data(&mut stream, s).unwrap(),

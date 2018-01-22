@@ -62,17 +62,17 @@ fn main() {
                 log_path,
                 LevelFilter::Blather,
                 Some(Box::new(|log| {
-                    if log.level() as u8 >= LevelFilter::Debug as u8 {
-                        format!(
-                            "[{}] {}::{} {}",
-                            log.level(),
-                            log.file(),
-                            log.line(),
-                            log.message()
-                        )
-                    } else {
-                        format!("[{}] {}", log.level(), log.message())
-                    }
+                    //if log.level() as u8 >= LevelFilter::Debug as u8 {
+                    format!(
+                        "[{}] {}::{} {}",
+                        log.level(),
+                        log.file(),
+                        log.line(),
+                        log.message()
+                    )
+                    // } else {
+                    //     format!("[{}] {}", log.level(), log.message())
+                    // }
                 })),
             ).unwrap(),
         )
