@@ -55,8 +55,8 @@ fn handle_fg(stream: &mut TcpStream, sign_recv: &mpsc::Receiver<Signal>) {
     loop {
         let mut buf = [0; 512];
         match stdin().read(&mut buf) {
-            Ok(_) => {
-                api::send_data(&mut stdin_stream, &buf).unwrap();
+            Ok(sz) => {
+                api::send_data(&mut stdin_stream, &buf[0..sz]).unwrap();
             }
             Err(ref e) if e.kind() == io::ErrorKind::Interrupted => break,
             Err(e) => {
@@ -152,34 +152,12 @@ fn main() {
                     .unwrap();
             }
             "fg" => {
-                //match fcntl::fcntl(0, fcntl::FcntlArg::F_GETFL) {
-                //    Ok(f) => {
-                //        let _ = fcntl::fcntl(
-                //            0,
-                //            fcntl::FcntlArg::F_SETFL(
-                //                fcntl::OFlag::from_bits_truncate(f) | fcntl::O_NONBLOCK,
-                //            ),
-                //        ).unwrap();
-                //    }
-                //    _ => {}
-                //}
                 ApiRequestBuilder::new(ApiKind::Foreground)
                     .arg(ApiArgKind::Target, "theprogramname".to_owned())
                     .build()
                     .send(&mut stream)
                     .unwrap();
                 handle_fg(&mut stream, &sign_recv);
-                //match fcntl::fcntl(0, fcntl::FcntlArg::F_GETFL) {
-                //    Ok(f) => {
-                //        let _ = fcntl::fcntl(
-                //            0,
-                //            fcntl::FcntlArg::F_SETFL(
-                //                fcntl::OFlag::from_bits_truncate(f) & !fcntl::O_NONBLOCK,
-                //            ),
-                //        ).unwrap();
-                //    }
-                //    _ => {}
-                //}
             }
             "exit" => break,
             //s => api::send_data(&mut stream, s).unwrap(),
