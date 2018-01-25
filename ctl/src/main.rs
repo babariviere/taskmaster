@@ -76,13 +76,13 @@ fn handle_fg(stream: &mut TcpStream, sign_recv: &mpsc::Receiver<Signal>) {
 fn main() {
     init_logger(|logger| {
         logger.add_output(Output::stdout(
-            LevelFilter::Info,
+            LevelFilter::Blather,
             Some(Box::new(|log| {
                 format!(
                     "{}:{} [{}] {}",
                     log.file(),
                     log.line(),
-                    log.level(),
+                    log.level().colored(),
                     log.message()
                 )
             })),
@@ -104,6 +104,7 @@ fn main() {
             .unwrap_or("taskmaster".to_owned())
     );
     loop {
+        // TODO: Ctrl C in main
         if let Ok(_sig) = sign_recv.try_recv() {
             print!("\x21[2K\r");
         }

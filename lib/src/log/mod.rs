@@ -35,6 +35,21 @@ pub enum Level {
     Blather,
 }
 
+impl Level {
+    /// Output a colored string
+    pub fn colored(&self) -> String {
+        match self {
+            &Level::Critical => format!("\x1b[31m{}\x1b[0m", self),
+            &Level::Error => format!("\x1b[91m{}\x1b[0m", self),
+            &Level::Warn => format!("\x1b[33m{}\x1b[0m", self),
+            &Level::Info => format!("\x1b[32m{}\x1b[0m", self),
+            &Level::Debug => format!("\x1b[36m{}\x1b[0m", self),
+            &Level::Trace => format!("\x1b[34m{}\x1b[0m", self),
+            &Level::Blather => format!("\x1b[35m{}\x1b[0m", self),
+        }
+    }
+}
+
 impl fmt::Display for Level {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
