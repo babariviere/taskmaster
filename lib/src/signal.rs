@@ -1,12 +1,13 @@
 //! Manage signal
 
+use failure::Error;
 use nix::libc;
 use nix::sys::signal::kill;
 use nix::sys::signal::Signal;
 use nix::unistd::Pid;
 
 /// Signal to stop a program
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[repr(i32)]
 pub enum StopSignal {
     /// Term signal
@@ -27,9 +28,9 @@ pub enum StopSignal {
 
 impl StopSignal {
     /// Kill a process
-    pub fn kill(&self, pid: Pid) -> ::nix::Result<()> {
+    pub fn kill(&self, pid: Pid) -> Result<(), Error> {
         trace!("killing pid {} with signal {:?}", pid, self);
-        kill(pid, Some(Signal::from_c_int(*self as i32).unwrap()))
+        kill(pid, Some(Signal::from_c_int(*self as i32).unwrap())).map_err(|e| e.into())
     }
 }
 

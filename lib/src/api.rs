@@ -235,6 +235,12 @@ impl ApiRequestBuilder {
         self
     }
 
+    /// Add args
+    pub fn args(mut self, args: Vec<ApiArg>) -> ApiRequestBuilder {
+        self.req.args = args;
+        self
+    }
+
     /// Compute
     pub fn build(self) -> ApiRequest {
         self.req

@@ -183,7 +183,7 @@ impl Process {
 
     /// Get proc name
     pub fn proc_name(&self) -> &str {
-        &self.config.proc_name
+        &self.config.name
     }
 
     fn handle_fail(&mut self) {
@@ -227,10 +227,7 @@ impl Process {
         loop {
             match wait::waitpid(pid, None) {
                 Ok(wait::WaitStatus::Exited(_, status)) => {
-                    info!(
-                        "process {} exited with code {}",
-                        self.config.proc_name, status
-                    );
+                    info!("process {} exited with code {}", self.config.name, status);
                     let mut state_lock = self.state.write().unwrap();
                     *state_lock = ProcessState::Exited(status);
                     drop(state_lock);
@@ -271,7 +268,7 @@ impl Process {
         if *state_lock == ProcessState::Fatal {
             return;
         }
-        trace!("spawning process {}", self.config.proc_name);
+        trace!("spawning process {}", self.config.name);
         *state_lock = ProcessState::Starting;
         drop(state_lock);
         let (c_stdin, p_stdin) = pipe().unwrap();
@@ -286,7 +283,7 @@ impl Process {
                     match chdir(wd) {
                         Ok(_) => {}
                         Err(e) => {
-                            trace!("error in process {}: {}", self.config.proc_name, e);
+                            trace!("error in process {}: {}", self.config.name, e);
                             self.handle_fail();
                         }
                     }
@@ -301,13 +298,13 @@ impl Process {
                 close(c_stdin).unwrap();
                 close(c_stdout).unwrap();
                 close(c_stderr).unwrap();
-                trace!("executing command for process {}", self.config.proc_name);
+                trace!("executing command for process {}", self.config.name);
                 match self.command.exec() {
                     Ok(_) => {
-                        trace!("command executed {}", self.config.proc_name);
+                        trace!("command executed {}", self.config.name);
                     }
                     Err(e) => {
-                        warn!("error when executing {}", self.config.proc_name);
+                        warn!("error when executing {}", self.config.name);
                         trace!("error: {}", e);
                     }
                 }
@@ -326,7 +323,7 @@ impl Process {
                 let mut state_lock = self.state.write().unwrap();
                 *state_lock = ProcessState::Running(child);
                 drop(state_lock);
-                info!("process {} spawned on pid {}", self.config.proc_name, child);
+                info!("process {} spawned on pid {}", self.config.name, child);
             }
             Err(e) => {
                 // TODO: respawn

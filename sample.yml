@@ -1,0 +1,15 @@
+ctl:
+    prompt: taskmasterctl
+
+daemon:
+    log_file: /tmp/taskasterd.log
+    log_file_maxbytes: 50MB
+    log_file_backups: 10
+    log_level: info
+
+processes:
+    - name: "program"
+      command: /bin/cat
+
+    - name: "another program for another life"
+      command: /bin/ls /

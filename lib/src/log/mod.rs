@@ -16,7 +16,7 @@ static mut LOGGER: Logger = Logger {
 };
 
 /// Log level
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[repr(u8)]
 pub enum Level {
     /// Requires user attention
@@ -88,7 +88,7 @@ impl FromStr for Level {
 }
 
 /// Log level filter
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[repr(u8)]
 pub enum LevelFilter {
     /// No log

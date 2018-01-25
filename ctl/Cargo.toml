@@ -4,6 +4,8 @@ version = "0.1.0"
 authors = ["babariviere <babariviere@protonmail.com>"]
 
 [dependencies]
+failure = "0.1"
 nix = "0.9"
+serde_yaml = "*"
 signal-notify = "*"
 taskmaster = {path = "../lib"}

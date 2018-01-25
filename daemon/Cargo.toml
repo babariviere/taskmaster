@@ -4,5 +4,7 @@ version = "0.1.0"
 authors = ["babariviere <babariviere@protonmail.com>"]
 
 [dependencies]
-taskmaster = {path = "../lib"}
+failure = "0.1"
 nix = "0.9.0"
+serde_yaml = "*"
+taskmaster = {path = "../lib"}
