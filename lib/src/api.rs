@@ -4,9 +4,6 @@ use std::io::{self, Read, Write};
 use std::fmt::{self, Display};
 use std::str::FromStr;
 
-// TODO: send chunk and receive chunk
-//       server and client must know sended data size
-
 macro_rules! impl_enum_str {
     (
         $(#[$attr:meta])*

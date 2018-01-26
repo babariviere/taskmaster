@@ -1,0 +1,49 @@
+---
+daemon:
+  logfile: /tmp/taskmasterd.log
+  logfile_maxbytes: 50MiB
+  logfile_backups: 10
+  loglevel: Info
+  pidfile: /tmp/taskmasterd.pid
+  umask: 0o22
+  nodaemon: false
+  minfds: 1024
+  nocleanup: false
+  child_log_dir: /Users/briviere/projects/taskmaster/ctl/tmp.5321
+ctl:
+  server_ip: "127.0.0.1:9450"
+  prompt: non monsieur
+  history_file: ~
+processes:
+  - name: theprogramname
+    command: /bin/cat
+    num_procs: 1
+    num_procs_start: 0
+    priority: 999
+    auto_start: true
+    start_secs: 1
+    start_retries: 3
+    auto_restart: Unexpected
+    exit_codes:
+      - 0
+      - 2
+    stop_signal: Term
+    stop_wait_secs: 10
+    stop_as_group: ~
+    kill_as_group: ~
+    user: ~
+    redirect_stderr: ~
+    stdout_logfile:
+      File: /Users/briviere/child.log
+    stdout_logfile_maxbytes: 50kB
+    stdout_logfile_backups: 10
+    stdout_capture_maxbytes: 0
+    stdout_events_enabled: false
+    stderr_logfile: Auto
+    stderr_logfile_maxbytes: 50kB
+    stderr_logfile_backups: 10
+    stderr_capture_maxbytes: 0
+    stderr_events_enabled: false
+    envs: ~
+    directory: /Users/briviere
+    umask: ~

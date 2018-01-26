@@ -40,6 +40,8 @@ pub struct DaemonConfig {
     pub logfile: PathBuf,
     /// Max log output
     #[serde(default = "default_logfile_maxbytes")]
+    #[serde(serialize_with = "serialize_human")]
+    #[serde(deserialize_with = "deserialize_human")]
     pub logfile_maxbytes: usize,
     /// Log backups
     #[serde(default = "default_logfile_backups")]
@@ -52,6 +54,8 @@ pub struct DaemonConfig {
     pub pidfile: PathBuf,
     /// Umask
     #[serde(default = "default_umask")]
+    #[serde(serialize_with = "serialize_octal")]
+    #[serde(deserialize_with = "deserialize_octal")]
     pub umask: u16,
     /// Disable daemon
     #[serde(default)]

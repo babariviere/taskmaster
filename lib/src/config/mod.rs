@@ -4,11 +4,13 @@ mod ctl;
 mod daemon;
 mod parser;
 mod process;
+mod util;
 
 pub use self::ctl::*;
 pub use self::daemon::*;
 pub use self::parser::*;
 pub use self::process::*;
+pub use self::util::*;
 
 use log::Level;
 use signal::StopSignal;

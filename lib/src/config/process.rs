@@ -90,6 +90,8 @@ pub struct ProcessConfig {
     pub stdout_logfile: OutputLog,
     /// Stdout max bytes
     #[serde(default = "default_logfile_maxbytes")]
+    #[serde(serialize_with = "serialize_human")]
+    #[serde(deserialize_with = "deserialize_human")]
     pub stdout_logfile_maxbytes: usize,
     /// Stdout backups
     #[serde(default = "default_logfile_backups")]
@@ -105,6 +107,8 @@ pub struct ProcessConfig {
     pub stderr_logfile: OutputLog,
     /// Stderr max bytes
     #[serde(default = "default_logfile_maxbytes")]
+    #[serde(serialize_with = "serialize_human")]
+    #[serde(deserialize_with = "deserialize_human")]
     pub stderr_logfile_maxbytes: usize,
     /// Stderr backups
     #[serde(default = "default_logfile_backups")]

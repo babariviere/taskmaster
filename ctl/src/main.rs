@@ -234,6 +234,7 @@ fn main_wrapper() -> Result<(), Error> {
     let mut buf = String::new();
     f.read_to_string(&mut buf)?;
     let config: Config = ConfigParser::new(buf).parse();
+    println!("{}", serde_yaml::to_string(&config).unwrap());
     let stream = TcpStream::connect(("127.0.0.1", taskmaster::DEFAULT_PORT))?;
     info!("connected to {}", stream.peer_addr()?);
     let prompt = format!(
@@ -253,6 +254,9 @@ fn main_wrapper() -> Result<(), Error> {
 }
 
 fn main() {
+    let mut f = ::std::fs::File::open("/Users/briviere/projects/taskmaster/ctl/test.yml").unwrap();
+    let config: Config = serde_yaml::from_reader(&mut f).unwrap();
+    println!("{:#?}", config);
     match main_wrapper() {
         Ok(()) => {}
         Err(e) => {
